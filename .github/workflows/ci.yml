@@ -14,6 +14,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - run: npm install -g npm@10
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
