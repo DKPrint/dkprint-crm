@@ -1,0 +1,16 @@
+---
+description: DKPrint CRM invariants from TZ §20 — auth, money, status, isolation
+globs: ["**/*.{ts,tsx,js,jsx,sql}"]
+alwaysApply: true
+---
+
+# DKPrint CRM — инварианты
+
+- Права и изоляция заказов — только на сервере (`lib/auth/permissions`, `assertOrderAccess`, `ordersVisibleWhere`). UI лишь прячет кнопки.
+- Деньги — только `lib/money` + decimal.js; БД NUMERIC(12,2); API number с 2 знаками. Не IEEE float для сумм.
+- Статусы — только через `status_transitions` (+ admin jump). Designer никогда не cancel/soft-delete.
+- R2 key: `dkprint/{R2_ENV}/orders/{orderNumber}/items/...` (orderNumber, не UUID).
+- Auth: Auth.js v5 Credentials + JWT session; на каждом protected request проверять user в БД (`is_active`, role).
+- `"use server"`: не делать barrel `export {…} from …` внутри файла с `"use server"`.
+- Плоская структура `app/` + `lib/`; без лишних repository/CQRS слоёв.
+- Источник истины: `docs/DKPrint-CRM-TZ-v1.md`.

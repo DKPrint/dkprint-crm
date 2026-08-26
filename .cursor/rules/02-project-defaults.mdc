@@ -1,0 +1,9 @@
+---
+description: Pragmatic defaults for internal CRM tooling
+globs: ["**/*"]
+alwaysApply: true
+---
+
+Prefer flat structure, small functions, explicit SQL, native HTML controls.
+Avoid premature microservices, generic frameworks, Storybook, CQRS.
+Choose the option easier to debug at 2 AM with fewer files and dependencies.

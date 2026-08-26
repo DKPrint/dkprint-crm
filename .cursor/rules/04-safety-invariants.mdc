@@ -1,0 +1,9 @@
+---
+description: Never simplify trust boundaries, money, auth, or idempotency
+globs: ["**/*.{ts,tsx,sql}"]
+alwaysApply: true
+---
+
+Do not remove validation at API boundaries, auth checks, money calculations, or duplicate-write guards.
+One canonical implementation per business rule (money, permissions, status).
+Warn before swapping DB/session infra near auth.
