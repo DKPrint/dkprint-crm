@@ -107,12 +107,73 @@ export async function updateTtn(
   return { id: u.id, ttnChecked: u.ttn_checked === true };
 }
 
-/** PATCH courier_note with access + edit policy. */
+/**
+ * PATCH courier_note (TZ §10.5).
+ * admin|production: any accessible non-cancelled/non-deleted order.
+ * photo_center: own client + status=new + reason (audit).
+ * designer|courier: read-only.
+ */
 export async function updateCourierNote(
   user: SessionUser,
   orderId: string,
   courierNote: string | null,
   reason?: string,
 ): Promise<{ id: string }> {
-  return updateOrder(user, orderId, { courierNote, reason });
+  const rows = await sql`
+    SELECT id, client_id, status, source, deleted_at, courier_note
+    FROM orders
+    WHERE id = ${orderId}
+    LIMIT 1
+  `;
+  const order = rows[0] as OrderEditRow | undefined;
+  if (!order) throw new Error('order_not_found');
+  if (order.deleted_at || order.status === 'cancelled') throw new Error('forbidden');
+
+  assertOrderAccess(user, order);
+
+  if (user.role === 'admin' || user.role === 'production') {
+    // allowed on any accessible order
+  } else if (user.role === 'photo_center') {
+    if (!user.clientId || order.client_id !== user.clientId) {
+      throw new Error('forbidden');
+    }
+    if (order.status !== 'new') {
+      throw new Error('forbidden');
+    }
+    if (!reason?.trim()) {
+      throw new Error('reason_required');
+    }
+  } else {
+    throw new Error('forbidden');
+  }
+
+  const oldNote = order.courier_note;
+  const newNote = courierNote;
+
+  await sql`
+    UPDATE orders
+    SET courier_note = ${newNote}, updated_at = now()
+    WHERE id = ${orderId}
+      AND deleted_at IS NULL
+      AND status <> 'cancelled'
+  `;
+
+  if (user.role === 'photo_center' || reason) {
+    await sql`
+      INSERT INTO order_audit_logs (
+        order_id, action, field_name, old_value, new_value, reason, user_id
+      )
+      VALUES (
+        ${orderId},
+        'update_order',
+        'courier_note',
+        ${oldNote},
+        ${newNote},
+        ${reason ?? null},
+        ${user.id}
+      )
+    `;
+  }
+
+  return { id: order.id };
 }

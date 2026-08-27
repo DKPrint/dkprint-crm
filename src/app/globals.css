@@ -479,3 +479,85 @@ table.data tbody tr.is-clickable {
   padding: 16px;
   background: #fff;
 }
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card h2 {
+  font-family: var(--font-head), system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-strong);
+  margin: 0 0 12px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 58, 74, 0.4);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal h2 {
+  font-family: var(--font-head), system-ui, sans-serif;
+  font-size: 20px;
+  margin: 0 0 14px;
+  color: var(--color-text-strong);
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+.st-sla-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.st-sla-overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.st-sla-stopped {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.meta-row .amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+}

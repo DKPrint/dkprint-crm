@@ -43,6 +43,7 @@ type DbItem = {
   order_id: string;
   position_number: number;
   category_id: string;
+  category_name: string | null;
   tech_params: string | null;
   quantity: number;
   unit_price: string;
@@ -80,6 +81,7 @@ export function serializeItem(i: DbItem) {
     orderId: i.order_id,
     positionNumber: i.position_number,
     categoryId: i.category_id,
+    categoryName: i.category_name ?? null,
     techParams: i.tech_params,
     quantity: Number(i.quantity),
     unitPrice: toApiNumber(i.unit_price),
@@ -112,11 +114,14 @@ export async function getOrderById(
   assertOrderAccess(user, order, { includeDeleted });
 
   const items = (await sql`
-    SELECT id, order_id, position_number, category_id, tech_params,
-           quantity, unit_price, line_total
-    FROM order_items
-    WHERE order_id = ${orderId}
-    ORDER BY position_number ASC
+    SELECT
+      oi.id, oi.order_id, oi.position_number, oi.category_id,
+      cat.name AS category_name, oi.tech_params,
+      oi.quantity, oi.unit_price, oi.line_total
+    FROM order_items oi
+    LEFT JOIN categories cat ON cat.id = oi.category_id
+    WHERE oi.order_id = ${orderId}
+    ORDER BY oi.position_number ASC
   `) as DbItem[];
 
   return {

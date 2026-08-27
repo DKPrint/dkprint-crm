@@ -26,11 +26,13 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'conflict':
     case 'status_conflict':
       return jsonError(409, code, 'Конфликт данных');
+    case 'cannot_delete_last_item':
+      return jsonError(400, code, 'Нельзя удалить последнюю позицию');
+    case 'reason_required':
+      return jsonError(400, code, 'Укажите причину');
     case 'validation':
     case 'invalid_transition':
-    case 'cannot_delete_last_item':
     case 'photo_center_cannot_change_status':
-    case 'reason_required':
     case 'invalid_status':
       return jsonError(400, code, err instanceof Error ? (err.cause as string) || code : code);
     default:
