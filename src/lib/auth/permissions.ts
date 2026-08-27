@@ -20,7 +20,11 @@ export const emptyPermissionFlags: PermissionFlags = {
   can_manage_sla: false,
 };
 
-/** Effective permissions per TZ §3 — designer never cancel/soft-delete. */
+/**
+ * Effective permissions per TZ §3.
+ * Designer never cancel/soft-delete; edit_price only admin or production+flag
+ * (designer / photo_center / courier hard-denied even with can_edit_price).
+ */
 export function can(
   role: Role,
   action: Action,
@@ -30,11 +34,18 @@ export function can(
     return false;
   }
 
+  if (
+    action === 'edit_price' &&
+    (role === 'designer' || role === 'photo_center' || role === 'courier')
+  ) {
+    return false;
+  }
+
   switch (action) {
     case 'access_reports':
       return role === 'admin' || flags.can_access_reports;
     case 'edit_price':
-      return role === 'admin' || flags.can_edit_price;
+      return role === 'admin' || (role === 'production' && flags.can_edit_price);
     case 'cancel_order':
       return role === 'admin' || role === 'production' || flags.can_cancel_order;
     case 'soft_delete_order':

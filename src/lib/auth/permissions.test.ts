@@ -35,6 +35,36 @@ describe('permissions', () => {
       true,
     );
   });
+
+  it('designer + can_edit_price → edit_price = false', () => {
+    assert.equal(can('designer', 'edit_price', allFlagsTrue), false);
+  });
+
+  it('photo_center + can_edit_price → edit_price = false', () => {
+    assert.equal(can('photo_center', 'edit_price', allFlagsTrue), false);
+  });
+
+  it('courier + can_edit_price → edit_price = false', () => {
+    assert.equal(can('courier', 'edit_price', allFlagsTrue), false);
+  });
+
+  it('production without flag → edit_price = false', () => {
+    assert.equal(can('production', 'edit_price'), false);
+  });
+
+  it('production with can_edit_price → edit_price = true', () => {
+    assert.equal(
+      can('production', 'edit_price', {
+        ...emptyPermissionFlags,
+        can_edit_price: true,
+      }),
+      true,
+    );
+  });
+
+  it('admin → edit_price = true', () => {
+    assert.equal(can('admin', 'edit_price'), true);
+  });
 });
 
 describe('assertOrderAccess', () => {
