@@ -21,6 +21,7 @@ type DbOrder = {
   order_date: string;
   daily_sequence: number;
   client_id: string;
+  client_name: string | null;
   status: string;
   created_by_user_id: string;
   created_by_role: string;
@@ -55,6 +56,7 @@ export function serializeOrder(o: DbOrder) {
     orderDate: String(o.order_date).slice(0, 10),
     dailySequence: Number(o.daily_sequence),
     clientId: o.client_id,
+    clientName: o.client_name ?? null,
     status: o.status,
     createdByUserId: o.created_by_user_id,
     createdByRole: o.created_by_role,
@@ -94,12 +96,14 @@ export async function getOrderById(
   const includeDeleted = user.role === 'admin' && opts.includeDeleted === true;
   const rows = await sql`
     SELECT
-      id, order_number, order_date, daily_sequence, client_id, status,
-      created_by_user_id, created_by_role, source, courier_note, ttn_checked,
-      total_amount, sla_started_at, sla_stopped_at, cancelled_at, cancel_reason,
-      deleted_at, created_at, updated_at
-    FROM orders
-    WHERE id = ${orderId}
+      o.id, o.order_number, o.order_date, o.daily_sequence, o.client_id,
+      c.name AS client_name, o.status,
+      o.created_by_user_id, o.created_by_role, o.source, o.courier_note, o.ttn_checked,
+      o.total_amount, o.sla_started_at, o.sla_stopped_at, o.cancelled_at, o.cancel_reason,
+      o.deleted_at, o.created_at, o.updated_at
+    FROM orders o
+    JOIN clients c ON c.id = o.client_id
+    WHERE o.id = ${orderId}
     LIMIT 1
   `;
   const order = rows[0] as DbOrder | undefined;
@@ -152,19 +156,25 @@ export async function listOrders(user: SessionUser, filters: OrderListFilters) {
 
   const rows = (await sql`
     SELECT
-      id, order_number, order_date, daily_sequence, client_id, status,
-      created_by_user_id, created_by_role, source, courier_note, ttn_checked,
-      total_amount, sla_started_at, sla_stopped_at, cancelled_at, cancel_reason,
-      deleted_at, created_at, updated_at
-    FROM orders
+      o.id, o.order_number, o.order_date, o.daily_sequence, o.client_id,
+      c.name AS client_name, o.status,
+      o.created_by_user_id, o.created_by_role, o.source, o.courier_note, o.ttn_checked,
+      o.total_amount, o.sla_started_at, o.sla_stopped_at, o.cancelled_at, o.cancel_reason,
+      o.deleted_at, o.created_at, o.updated_at
+    FROM orders o
+    JOIN clients c ON c.id = o.client_id
     WHERE
-      (${excludeDeleted} = false OR deleted_at IS NULL)
-      AND (${clientId}::uuid IS NULL OR client_id = ${clientId}::uuid)
-      AND (${statuses}::text[] IS NULL OR status = ANY(${statuses}::text[]))
-      AND (${q}::text IS NULL OR order_number ILIKE '%' || ${q} || '%')
-      AND (${from}::date IS NULL OR order_date >= ${from}::date)
-      AND (${to}::date IS NULL OR order_date <= ${to}::date)
-    ORDER BY created_at DESC
+      (${excludeDeleted} = false OR o.deleted_at IS NULL)
+      AND (${clientId}::uuid IS NULL OR o.client_id = ${clientId}::uuid)
+      AND (${statuses}::text[] IS NULL OR o.status = ANY(${statuses}::text[]))
+      AND (
+        ${q}::text IS NULL
+        OR o.order_number ILIKE '%' || ${q} || '%'
+        OR c.name ILIKE '%' || ${q} || '%'
+      )
+      AND (${from}::date IS NULL OR o.order_date >= ${from}::date)
+      AND (${to}::date IS NULL OR o.order_date <= ${to}::date)
+    ORDER BY o.created_at DESC
     LIMIT 200
   `) as DbOrder[];
 

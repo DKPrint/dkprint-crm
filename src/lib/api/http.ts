@@ -15,17 +15,17 @@ export function jsonFromError(err: unknown): NextResponse {
   const code = err instanceof Error ? err.message : 'internal_error';
   switch (code) {
     case 'unauthorized':
-      return jsonError(401, code, 'Authentication required');
+      return jsonError(401, code, 'Требуется вход');
     case 'invalid_password':
-      return jsonError(403, code, 'Invalid password');
+      return jsonError(403, code, 'Неверный пароль');
     case 'forbidden':
-      return jsonError(403, code, 'Forbidden');
+      return jsonError(403, code, 'Недостаточно прав');
     case 'order_not_found':
     case 'item_not_found':
-      return jsonError(404, code, 'Not found');
+      return jsonError(404, code, 'Не найдено');
     case 'conflict':
     case 'status_conflict':
-      return jsonError(409, code, 'Conflict');
+      return jsonError(409, code, 'Конфликт данных');
     case 'validation':
     case 'invalid_transition':
     case 'cannot_delete_last_item':
@@ -38,6 +38,6 @@ export function jsonFromError(err: unknown): NextResponse {
         return jsonError(400, 'validation', code);
       }
       console.error(err);
-      return jsonError(500, 'internal_error', 'Internal server error');
+      return jsonError(500, 'internal_error', 'Внутренняя ошибка сервера');
   }
 }

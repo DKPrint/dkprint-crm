@@ -76,6 +76,15 @@ export async function createOrder(
     throw new Error('validation');
   }
 
+  const categoryIdsCheck = [...new Set(input.items.map((it) => it.categoryId))];
+  const activeCats = (await sql`
+    SELECT id FROM categories
+    WHERE id = ANY(${categoryIdsCheck}::uuid[]) AND is_active = true
+  `) as Array<{ id: string }>;
+  if (activeCats.length !== categoryIdsCheck.length) {
+    throw new Error('validation');
+  }
+
   const prepared = input.items.map((it, idx) => {
     if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
       throw new Error('validation');
