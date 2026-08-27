@@ -47,6 +47,22 @@ describe('assertOrderAccess', () => {
       ),
     );
   });
+
+  it('soft-deleted: non-admin throws; admin with includeDeleted does not', () => {
+    const deleted = { ...order, deleted_at: '2026-08-27T12:00:00Z' };
+    assert.throws(() =>
+      assertOrderAccess({ id: 'u1', role: 'production', clientId: null }, deleted),
+    );
+    assert.throws(() =>
+      assertOrderAccess({ id: 'u1', role: 'photo_center', clientId: 'c1' }, deleted),
+    );
+    assert.throws(() => assertOrderAccess({ id: 'u1', role: 'admin', clientId: null }, deleted));
+    assert.doesNotThrow(() =>
+      assertOrderAccess({ id: 'u1', role: 'admin', clientId: null }, deleted, {
+        includeDeleted: true,
+      }),
+    );
+  });
 });
 
 describe('ordersVisibleWhere', () => {
@@ -54,5 +70,12 @@ describe('ordersVisibleWhere', () => {
     const w = ordersVisibleWhere({ id: 'u', role: 'photo_center', clientId: 'c1' });
     assert.equal(w.clientId, 'c1');
     assert.equal(w.excludeDeleted, true);
+  });
+
+  it('courier returns three delivery statuses + excludeDeleted', () => {
+    const w = ordersVisibleWhere({ id: 'u', role: 'courier', clientId: null });
+    assert.deepEqual(w.statuses, ['ready_for_pickup', 'with_courier', 'delivered']);
+    assert.equal(w.excludeDeleted, true);
+    assert.equal(w.clientId, undefined);
   });
 });
