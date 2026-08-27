@@ -1,24 +1,39 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { can } from './permissions';
+import { can, emptyPermissionFlags } from './permissions';
 import { assertOrderAccess, ordersVisibleWhere } from './assertOrderAccess';
+
+const allFlagsTrue = {
+  ...emptyPermissionFlags,
+  can_access_reports: true,
+  can_edit_price: true,
+  can_cancel_order: true,
+  can_soft_delete_order: true,
+  can_manage_sla: true,
+};
 
 describe('permissions', () => {
   it('designer never cancels even with flag', () => {
-    assert.equal(
-      can('designer', 'cancel_order', {
-        can_access_reports: false,
-        can_edit_price: false,
-        can_cancel_order: true,
-        can_soft_delete_order: true,
-        can_manage_sla: false,
-      }),
-      false,
-    );
+    assert.equal(can('designer', 'cancel_order', allFlagsTrue), false);
+  });
+
+  it('designer never soft-deletes even with flag', () => {
+    assert.equal(can('designer', 'soft_delete_order', allFlagsTrue), false);
   });
 
   it('production can cancel by role', () => {
     assert.equal(can('production', 'cancel_order'), true);
+  });
+
+  it('photo_center cancel without flag is false; with flag is true', () => {
+    assert.equal(can('photo_center', 'cancel_order'), false);
+    assert.equal(
+      can('photo_center', 'cancel_order', {
+        ...emptyPermissionFlags,
+        can_cancel_order: true,
+      }),
+      true,
+    );
   });
 });
 
@@ -38,14 +53,19 @@ describe('assertOrderAccess', () => {
     );
   });
 
-  it('courier only delivery statuses', () => {
-    assert.throws(() => assertOrderAccess({ id: 'u1', role: 'courier', clientId: null }, order));
-    assert.doesNotThrow(() =>
-      assertOrderAccess(
-        { id: 'u1', role: 'courier', clientId: null },
-        { ...order, status: 'ready_for_pickup' },
-      ),
+  it('photo_center with null clientId throws', () => {
+    assert.throws(() =>
+      assertOrderAccess({ id: 'u1', role: 'photo_center', clientId: null }, order),
     );
+  });
+
+  it('courier only delivery statuses', () => {
+    const courier = { id: 'u1', role: 'courier' as const, clientId: null };
+    assert.throws(() => assertOrderAccess(courier, order)); // new
+    assert.throws(() => assertOrderAccess(courier, { ...order, status: 'accepted' }));
+    assert.doesNotThrow(() => assertOrderAccess(courier, { ...order, status: 'ready_for_pickup' }));
+    assert.doesNotThrow(() => assertOrderAccess(courier, { ...order, status: 'with_courier' }));
+    assert.doesNotThrow(() => assertOrderAccess(courier, { ...order, status: 'delivered' }));
   });
 
   it('soft-deleted: non-admin throws; admin with includeDeleted does not', () => {
@@ -69,6 +89,12 @@ describe('ordersVisibleWhere', () => {
   it('photo_center filters by clientId', () => {
     const w = ordersVisibleWhere({ id: 'u', role: 'photo_center', clientId: 'c1' });
     assert.equal(w.clientId, 'c1');
+    assert.equal(w.excludeDeleted, true);
+  });
+
+  it('photo_center without clientId uses nil sentinel', () => {
+    const w = ordersVisibleWhere({ id: 'u', role: 'photo_center', clientId: null });
+    assert.equal(w.clientId, '00000000-0000-0000-0000-000000000000');
     assert.equal(w.excludeDeleted, true);
   });
 

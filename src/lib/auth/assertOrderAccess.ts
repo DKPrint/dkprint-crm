@@ -44,6 +44,9 @@ export function assertOrderAccess(
   // admin | production | designer — all non-deleted (handled above)
 }
 
+/** Never matches a real client; used when photo_center has no clientId. */
+const NIL_CLIENT_ID = '00000000-0000-0000-0000-000000000000';
+
 /** SQL-ish filter helper for list queries. */
 export function ordersVisibleWhere(user: SessionUser): {
   clientId?: string;
@@ -51,7 +54,11 @@ export function ordersVisibleWhere(user: SessionUser): {
   excludeDeleted: boolean;
 } {
   if (user.role === 'photo_center') {
-    return { clientId: user.clientId ?? undefined, excludeDeleted: true };
+    // Defense in depth: unscoped photo_center must not see all clients
+    return {
+      clientId: user.clientId ?? NIL_CLIENT_ID,
+      excludeDeleted: true,
+    };
   }
   if (user.role === 'courier') {
     return {

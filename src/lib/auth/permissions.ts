@@ -11,7 +11,8 @@ export type PermissionFlags = {
 export type Action =
   'access_reports' | 'edit_price' | 'cancel_order' | 'soft_delete_order' | 'manage_sla';
 
-const emptyFlags: PermissionFlags = {
+/** All-false permission flags (default when no overrides). */
+export const emptyPermissionFlags: PermissionFlags = {
   can_access_reports: false,
   can_edit_price: false,
   can_cancel_order: false,
@@ -20,7 +21,11 @@ const emptyFlags: PermissionFlags = {
 };
 
 /** Effective permissions per TZ §3 — designer never cancel/soft-delete. */
-export function can(role: Role, action: Action, flags: PermissionFlags = emptyFlags): boolean {
+export function can(
+  role: Role,
+  action: Action,
+  flags: PermissionFlags = emptyPermissionFlags,
+): boolean {
   if (role === 'designer' && (action === 'cancel_order' || action === 'soft_delete_order')) {
     return false;
   }
