@@ -20,3 +20,10 @@ function getClient(): Sql {
 /** Single Neon access path — tagged template SQL (TZ §20.2). */
 export const sql: Sql = ((strings: TemplateStringsArray, ...params: unknown[]) =>
   getClient()(strings, ...params)) as Sql;
+
+/** Non-interactive HTTP transaction (all query params known up front). */
+export function transaction(
+  ...args: Parameters<Sql['transaction']>
+): ReturnType<Sql['transaction']> {
+  return getClient().transaction(...args);
+}

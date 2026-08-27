@@ -13,15 +13,15 @@ export type OrderStatus =
 
 export type TransitionDirection = 'forward' | 'backward' | 'cancel';
 
-type Edge = {
+export type TransitionEdge = {
   from: OrderStatus;
   to: OrderStatus;
   direction: TransitionDirection;
   roles: Role[];
 };
 
-/** In-memory graph mirroring migrations/seed.sql (TZ §19.2). No DB. */
-const TRANSITIONS: readonly Edge[] = [
+/** In-memory graph mirroring migrations/seed.sql (TZ §19.2). Tests / fixtures only. */
+export const SEED_TRANSITIONS: readonly TransitionEdge[] = [
   // Forward
   { from: 'new', to: 'accepted', direction: 'forward', roles: ['admin', 'production', 'designer'] },
   {
@@ -114,10 +114,21 @@ export type CanTransitionArgs = {
 };
 
 /**
- * Whether a status change is allowed (stub for Phase 0; later backed by DB).
- * Designer never cancel; non-admin cannot admin-jump; courier only courier edges.
+ * Whether an active cancel transition path exists from `from` → cancelled.
+ * Role membership on the edge is not required — permission is via can('cancel_order').
  */
-export function canTransition({ from, to, role, isAdminJump = false }: CanTransitionArgs): boolean {
+export function hasCancelEdge(edges: readonly TransitionEdge[], from: OrderStatus): boolean {
+  return edges.some((e) => e.from === from && e.to === 'cancelled' && e.direction === 'cancel');
+}
+
+/**
+ * Whether a status change is allowed given active transition edges.
+ * Designer never cancel; non-admin cannot admin-jump; neighbor/cancel need matching edge.
+ */
+export function canTransition(
+  { from, to, role, isAdminJump = false }: CanTransitionArgs,
+  edges: readonly TransitionEdge[],
+): boolean {
   if (from === to) return false;
 
   // Designer never cancel/soft-delete (TZ §3 / §19.2)
@@ -130,11 +141,12 @@ export function canTransition({ from, to, role, isAdminJump = false }: CanTransi
     return true;
   }
 
-  const edge = TRANSITIONS.find((e) => e.from === from && e.to === to);
+  const edge = edges.find((e) => e.from === from && e.to === to);
   if (!edge) return false;
   return edge.roles.includes(role);
 }
 
-export function listTransitions(): readonly Edge[] {
-  return TRANSITIONS;
+/** @deprecated Prefer SEED_TRANSITIONS — kept for callers that listed seed edges. */
+export function listTransitions(): readonly TransitionEdge[] {
+  return SEED_TRANSITIONS;
 }
