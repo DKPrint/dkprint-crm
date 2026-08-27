@@ -1,5 +1,5 @@
 -- Seed v1 (TZ §19) — run after 001_init.sql
--- Admin password must be hashed by app seed script; placeholder hash replaced at deploy.
+-- Admin user: create via `npm run seed:admin` (bcrypt hash; not plaintext in SQL).
 
 INSERT INTO categories (name, sort_order) VALUES
   ('Печать', 1),

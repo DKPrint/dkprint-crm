@@ -4,7 +4,9 @@
 
 **ТЗ:** [`docs/DKPrint-CRM-TZ-v1.md`](docs/DKPrint-CRM-TZ-v1.md) (v1.3)  
 **Дизайн:** [`design-system/dkprint-crm/`](design-system/dkprint-crm/)  
-**Auth:** Auth.js (NextAuth v5) Credentials + JWT session
+**Auth:** Auth.js / `next-auth` `^5.0.0-beta.32` — Credentials + JWT session
+
+> **Важно:** без `AUTH_SECRET` в `.env` логин Auth.js не заработает. Скопируйте `.env.example` → `.env` и задайте секрет.
 
 ## Agents / skills
 
@@ -18,16 +20,27 @@
 
 - [x] Next.js + TS strict + ESLint + Prettier + CI
 - [x] `migrations/001_init.sql` + `seed.sql`
-- [x] `.env.example`
-- [x] `lib/money`, `lib/auth` stubs + unit tests
-- [x] Auth.js route + `/login` stub
-- [ ] Neon `DATABASE_URL` + реальный Credentials authorize
-- [ ] Seed admin user из env
+- [x] `.env.example` (§18) + `.gitignore` для `.env*`
+- [x] Neon client (`src/lib/db`) + Credentials authorize + JWT session
+- [x] Login form + auth-aware home shell
+- [x] `lib/money` (`recalcOrderTotal`), `lib/auth` (`requireAuth`, permissions)
+- [x] Status-transition stubs + unit tests
+- [x] Seed admin: `npm run seed:admin`
+
+## Database setup (Neon)
+
+1. Create a Neon project and set `DATABASE_URL` in `.env`
+2. Apply schema: run `migrations/001_init.sql` in the Neon SQL editor (or `psql`)
+3. Apply seed data: run `migrations/seed.sql` (categories, SLA, status_transitions)
+4. Create admin: `npm run seed:admin` (needs `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` in `.env`)
+
+`seed:admin` loads `.env` via `tsx --env-file=.env`. Script is idempotent on email.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev
+npm run seed:admin
 npm run typecheck && npm run lint && npm run format:check && npm test
 ```

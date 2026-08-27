@@ -18,6 +18,13 @@ export function sumLineTotals(amounts: Array<string | number | Decimal>): Decima
   return acc.toDecimalPlaces(2);
 }
 
+/** Recalculate order total from line items (TZ §20.2 naming). */
+export function recalcOrderTotal(
+  lines: Array<{ quantity: number; unitPrice: string | number }>,
+): Decimal {
+  return sumLineTotals(lines.map((l) => lineTotal(l.quantity, l.unitPrice)));
+}
+
 /** API / JSON: number with 2 decimal places. */
 export function toApiNumber(value: Decimal | string | number): number {
   return new Decimal(value).toDecimalPlaces(2).toNumber();
