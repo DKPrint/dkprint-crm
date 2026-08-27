@@ -5,6 +5,7 @@ import {
   ordersVisibleWhere,
   type SessionUser,
 } from '@/lib/auth/assertOrderAccess';
+import { listFilesForOrder } from '@/lib/files/queries';
 
 export type OrderListFilters = {
   status?: string[];
@@ -86,7 +87,6 @@ export function serializeItem(i: DbItem) {
     quantity: Number(i.quantity),
     unitPrice: toApiNumber(i.unit_price),
     lineTotal: toApiNumber(i.line_total),
-    files: [] as unknown[],
   };
 }
 
@@ -124,10 +124,13 @@ export async function getOrderById(
     ORDER BY oi.position_number ASC
   `) as DbItem[];
 
+  const files =
+    user.role === 'courier' ? [] : await listFilesForOrder(user, orderId, { includeDeleted });
+
   return {
     ...serializeOrder(order),
     items: items.map(serializeItem),
-    files: [] as unknown[],
+    files,
   };
 }
 

@@ -25,6 +25,19 @@ export type OrderItem = {
   lineTotal: number;
 };
 
+export type OrderFile = {
+  id: string;
+  orderId: string;
+  orderItemId: string;
+  block: 'client' | 'designer';
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadStatus: 'pending' | 'confirmed' | 'failed';
+  uploadedByUserId: string;
+  createdAt: string;
+};
+
 export type OrderDetail = {
   id: string;
   orderNumber: string;
@@ -44,6 +57,7 @@ export type OrderDetail = {
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
+  files: OrderFile[];
 };
 
 export type Category = { id: string; name: string };
@@ -112,7 +126,9 @@ export function OrderCard({ initialOrder, role, flags, categories }: Props) {
         onSuccess={afterMutation}
       />
 
-      {role !== 'courier' ? <OrderFiles /> : null}
+      {role !== 'courier' ? (
+        <OrderFiles order={order} role={role} onError={setError} onSuccess={afterMutation} />
+      ) : null}
 
       <CourierSection order={order} role={role} onError={setError} onSuccess={afterMutation} />
 

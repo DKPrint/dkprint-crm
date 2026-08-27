@@ -22,7 +22,18 @@ export function jsonFromError(err: unknown): NextResponse {
       return jsonError(403, code, 'Недостаточно прав');
     case 'order_not_found':
     case 'item_not_found':
+    case 'file_not_found':
       return jsonError(404, code, 'Не найдено');
+    case 'file_not_ready':
+      return jsonError(400, code, 'Файл ещё не загружен');
+    case 'file_too_large':
+      return jsonError(400, code, 'Файл больше 100 МБ');
+    case 'invalid_mime':
+      return jsonError(400, code, 'Недопустимый тип файла');
+    case 'invalid_filename':
+      return jsonError(400, code, 'Недопустимое имя файла');
+    case 'r2_not_configured':
+      return jsonError(503, code, 'Хранилище файлов не настроено');
     case 'conflict':
     case 'status_conflict':
       return jsonError(409, code, 'Конфликт данных');

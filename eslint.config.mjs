@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
       'src/lib/auth/**/*.{ts,tsx}',
       'src/lib/money/**/*.{ts,tsx}',
       'src/lib/orders/**/*.{ts,tsx}',
+      'src/lib/files/**/*.{ts,tsx}',
     ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
