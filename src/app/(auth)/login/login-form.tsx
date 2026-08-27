@@ -32,7 +32,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push('/');
+      router.push('/orders');
       router.refresh();
     } catch {
       setPending(false);
