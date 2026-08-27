@@ -1,5 +1,4 @@
 import { requireAuth, sessionUser } from '@/lib/auth/requireAuth';
-import { loadPermissionFlags } from '@/lib/auth/permission-flags';
 import { jsonError, jsonFromError, jsonOk } from '@/lib/api/http';
 import { patchPriceSchema } from '@/lib/orders/schemas';
 import { patchItemPrice } from '@/lib/orders/order-items';
@@ -11,6 +10,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
   try {
     const authResult = await requireAuth();
     if (!authResult) return jsonError(401, 'unauthorized', 'Authentication required');
+    const { flags } = authResult;
     const user = sessionUser(authResult);
     const { id, itemId } = await ctx.params;
     const body = await request.json();
@@ -18,7 +18,6 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (!parsed.success) {
       return jsonError(400, 'validation', parsed.error.message);
     }
-    const flags = await loadPermissionFlags(user.id);
     const { item, totalAmount } = await patchItemPrice(
       user,
       id,

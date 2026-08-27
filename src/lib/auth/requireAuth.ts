@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { sql } from '@/lib/db';
-import type { Role } from './permissions';
+import type { PermissionFlags, Role } from './permissions';
 import type { SessionUser } from './assertOrderAccess';
 
 export type { SessionUser };
@@ -14,19 +14,32 @@ export type AuthSessionUser = SessionUser & {
 /**
  * Returns the current session if authenticated and user is still active in DB.
  * Returns null when unauthenticated or deactivated (TZ §15.1).
- * Role/clientId come from DB (not JWT) so deactivated or role-changed users are gated.
+ * Role/clientId/flags come from DB (not JWT) so deactivated or role-changed users are gated.
  */
 export async function requireAuth(): Promise<{
   user: AuthSessionUser;
+  flags: PermissionFlags;
 } | null> {
   const session = await auth();
   const user = session?.user;
   if (!user?.id) return null;
 
   const rows = await sql`
-    SELECT id, email, display_name, role, client_id, is_active
-    FROM users
-    WHERE id = ${user.id}
+    SELECT
+      u.id,
+      u.email,
+      u.display_name,
+      u.role,
+      u.client_id,
+      u.is_active,
+      po.can_access_reports,
+      po.can_edit_price,
+      po.can_cancel_order,
+      po.can_soft_delete_order,
+      po.can_manage_sla
+    FROM users u
+    LEFT JOIN permission_overrides po ON po.user_id = u.id
+    WHERE u.id = ${user.id}
     LIMIT 1
   `;
   const row = rows[0] as
@@ -37,6 +50,11 @@ export async function requireAuth(): Promise<{
         role: Role;
         client_id: string | null;
         is_active: boolean;
+        can_access_reports: boolean | null;
+        can_edit_price: boolean | null;
+        can_cancel_order: boolean | null;
+        can_soft_delete_order: boolean | null;
+        can_manage_sla: boolean | null;
       }
     | undefined;
 
@@ -51,6 +69,13 @@ export async function requireAuth(): Promise<{
       clientId: row.client_id,
       email: row.email,
       name: row.display_name,
+    },
+    flags: {
+      can_access_reports: row.can_access_reports === true,
+      can_edit_price: row.can_edit_price === true,
+      can_cancel_order: row.can_cancel_order === true,
+      can_soft_delete_order: row.can_soft_delete_order === true,
+      can_manage_sla: row.can_manage_sla === true,
     },
   };
 }
