@@ -33,8 +33,21 @@
 2. Apply schema: run `migrations/001_init.sql` in the Neon SQL editor (or `psql`)
 3. Apply seed data: run `migrations/seed.sql` (categories, SLA, status_transitions)
 4. Create admin: `npm run seed:admin` (needs `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` in `.env`)
+5. Optional demo roster (keeps admin, resets other users): `CONFIRM_SEED_DEMO=yes npm run seed:demo`
 
 `seed:admin` loads `.env` via `tsx --env-file=.env`. Script is idempotent on email.
+
+### Demo logins (`seed:demo`)
+
+| Email | Role | Client |
+|-------|------|--------|
+| `point-a@dkprint.local` | photo_center | Точка А |
+| `point-b@dkprint.local` | photo_center | Точка Б |
+| `production@dkprint.local` | production | — |
+| `designer@dkprint.local` | designer | — |
+| `courier@dkprint.local` | courier | — |
+
+Default password: `Demo123!` (override with `SEED_DEMO_PASSWORD`).
 
 ## Commands
 

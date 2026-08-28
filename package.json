@@ -11,7 +11,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts"
+    "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts",
+    "seed:demo": "tsx --env-file=.env scripts/seed-demo-users.ts",
+    "seed:reset-orders": "tsx --env-file=.env scripts/reset-orders.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1119.0",

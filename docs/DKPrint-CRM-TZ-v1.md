@@ -1,12 +1,13 @@
 # DKPrint CRM — техническое задание v1 (полное)
 
-**Версия:** 1.3  
+**Версия:** 1.4  
 **Дата:** август 2026  
 **Статус:** согласовано, готово к передаче в разработку  
 **Базовый документ решений:** v1.2  
 **Изменения v1.1:** гигиена кода и качество; зафиксированы auth, SLA cron, Telegram, soft-delete password, timezone; выровнен дизайн-токен фона; Definition of Done.  
 **Изменения v1.2:** усиление §20 (модуль прав, изоляция заказов, money/Decimal, Next `"use server"` barrel, hotspots, R2/SLA ops, тесты, Cursor rules) по опыту Boxmart CRM.  
-**Изменения v1.3:** выравнивание несостыковок — R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = **Auth.js (NextAuth v5)** Credentials.
+**Изменения v1.3:** выравнивание несостыковок — R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = **Auth.js (NextAuth v5)** Credentials.  
+**Изменения v1.4:** Telegram — **живая карточка заказа** (одно сообщение на заказ, `editMessageText` при статусе и комментарии); поле `orders.telegram_message_id`; Web Push остаётся event-driven (§10.2).
 
 > **Этот файл — единственный документ для старта работы в новом репозитории.**  
 > При любом расхождении с другими заметками / чатами / старыми split-docs — **верен этот файл**.  
@@ -78,7 +79,7 @@
 - Статус **«Отменён»** (≠ soft-delete)
 - Два блока файлов + **R2 presigned upload**
 - Очередь цеха, задачи (без курьера), **ТТН**
-- Push + Telegram: новый заказ, готов к выдаче, проблемный макет, SLA
+- Web Push: новый заказ, готов к выдаче, проблемный макет, SLA; Telegram — **живая карточка** заказа в группе (редактируется при статусе и комментарии)
 - Отчёты с деньгами; SLA default **72 ч**; остановка SLA при отмене / soft-delete / delivered
 - Чекбокс **«Проблемный макет»** в комментарии
 - Базовая гигиена кода (§20): strict TS, lint, валидация границ, CI typecheck+lint; модуль прав + изоляция заказов; точечные unit (§20.5)
@@ -106,7 +107,7 @@
 | Файлы | **Cloudflare R2** | Presigned PUT/GET; бакет приватный |
 | Auth | **Auth.js (NextAuth v5)** | Session cookie (httpOnly, Secure, SameSite); provider **Credentials** (email + password); не смешивать с другими auth-стеками |
 | Push | Web Push API | VAPID keys |
-| Telegram | Bot → одна рабочая группа | **Исходящие** сообщения через Bot API; polling/webhook **не нужны** в v1 (бот только шлёт) |
+| Telegram | Bot → одна рабочая группа | **Исходящие** `sendMessage` / `editMessageText`; одна **карточка на заказ**; polling/webhook **не нужны** в v1 |
 | SLA job | **Vercel Cron** | Раз в 15 мин (см. §11.2) |
 | Deploy | **Vercel** + GitHub | Staging + prod по желанию |
 
@@ -491,38 +492,52 @@ GET /api/files/:fileId/download → { downloadUrl }  signed GET TTL 1–5 мин
 
 ### 10.1 Комментарии
 
-- Обычный комментарий — **без** push/Telegram
-- Чекбокс **«Проблемный макет»** (`is_problematic_layout=true`) → Web Push + Telegram
+- Обычный комментарий — **без** Web Push; карточка Telegram **редактируется** (показывается **последний** комментарий)
+- Чекбокс **«Проблемный макет»** (`is_problematic_layout=true`) → Web Push **+** редактирование карточки TG (пометка «⚠️ Проблемный макет»)
 - Designer использует чекбокс для эскалации; **отмену** оформляет production/admin
-- Courier комментарии **не** пишет (нет в матрице)
+- Courier комментарии **не** пишет (нет в матрице) — в TG карточку не обновляет
 
 ### 10.2 События уведомлений
 
-| Событие | Web Push | Telegram |
-|---------|:--------:|:--------:|
-| Новый заказ | admin, production, designer | группа |
-| Готов к выдаче (`ready_for_pickup`) | admin, production, **courier** | группа |
-| Проблемный макет | участники* | группа |
-| Просрочка SLA | admin, production | группа |
+**Web Push** — отдельные push-алерты на события. **Telegram** — одна карточка на заказ (§10.3); на события ниже карточка **редактируется**, новое сообщение **не** создаётся (кроме первого `sendMessage` при создании заказа).
+
+| Событие | Web Push | Telegram (карточка) |
+|---------|:--------:|:-------------------:|
+| Новый заказ | admin, production, designer | **создать** карточку (`sendMessage`) |
+| Любая смена статуса (в т.ч. `cancelled`, `delivered`) | — | **редактировать** (`editMessageText`) |
+| Готов к выдаче (`ready_for_pickup`) | admin, production, **courier** | редактировать (статус обновится) |
+| Новый комментарий (не courier) | — | редактировать (последний комментарий) |
+| Проблемный макет | участники* | редактировать + пометка |
+| Просрочка SLA | admin, production | редактировать + пометка SLA |
 
 \* Участники проблемного макета v1: admin + production + designer + photo_center **владельца** заказа (не другие точки).
 
-**Новый заказ — не отправлять другим фотоцентрам.**
+**Новый заказ — Web Push не отправлять другим фотоцентрам.** Telegram-карточка одна на заказ в общей группе (не per-point).
 
 ### 10.3 Telegram (детализация v1)
 
 - Один бот, один `TELEGRAM_CHAT_ID` (рабочая группа).
-- Отправка: `sendMessage` через HTTPS Bot API с сервера.
-- Формат сообщения (рекомендуемый):
+- **Модель «живая карточка»:** на каждый заказ — **одно** сообщение в группе. При изменениях в CRM сообщение **редактируется** (`editMessageText`), а не дублируется новыми `sendMessage`.
+- **Первое сообщение:** при создании заказа — `sendMessage`; сохранить `message_id` в `orders.telegram_message_id`.
+- **Редактирование карточки** (если `telegram_message_id` есть):
+  - любая смена статуса (next/prev/jump/**cancel**/→**delivered** и др.);
+  - добавление комментария (кроме courier — §10.1);
+  - просрочка SLA / проблемный макет — те же правила + пометка в теле карточки.
+- **Fallback:** если `editMessageText` падает (нет `message_id`, сообщение удалено в TG) — новый `sendMessage`, обновить `telegram_message_id`.
+- **Формат** (`parse_mode: HTML`; экранировать `<`, `>`, `&` в пользовательском тексте):
 
 ```
-[DKPrint] Новый заказ DK-260824-3
-Клиент: … | Сумма: … | Статус: …
+[DKPrint] DK-260824-3
+Клиент: … | Сумма: …
+<b>Статус: Принят</b>
+Комментарий: … (последний или «—»)
 Ссылка: https://{APP_URL}/orders/{id}
 ```
 
+- Строка **«Статус: …»** — всегда **жирным** (`<b>…</b>`); подпись статуса — из UI-лейблов CRM (`statusLabel`).
 - Ошибки Telegram **не** откатывают бизнес-операцию; писать в `notification_log` при наличии.
 - Webhook/polling входящих сообщений в v1 **не делаем**.
+- Канон реализации: `lib/notifications/telegram.ts` + `syncOrderTelegramCard(orderId)` после успешного commit в БД.
 
 ### 10.4 Web Push (детализация v1)
 
@@ -565,7 +580,7 @@ ELSE:
 
 - **Vercel Cron** → `GET`/`POST` `/api/cron/sla-overdue` каждые **15 минут**.
 - Защита: заголовок `Authorization: Bearer CRON_SECRET` (или встроенный механизм Vercel Cron).
-- Логика: выбрать заказы `deleted_at IS NULL AND status NOT IN ('cancelled','delivered') AND sla_stopped_at IS NULL AND overdue`; для ещё не уведомлённых за последний N часов — push + TG.
+- Логика: выбрать заказы `deleted_at IS NULL AND status NOT IN ('cancelled','delivered') AND sla_stopped_at IS NULL AND overdue`; для ещё не уведомлённых за последний N часов — Web Push + **редактирование** TG-карточки (§10.3).
 - Дедуп: либо поле `sla_overdue_notified_at` на `orders` (**добавить в схему v1.1**, см. §14.9), либо запись в `notification_log` с проверкой «уже слали сегодня».
 
 **Решение v1.1:** колонка `orders.sla_overdue_notified_at TIMESTAMPTZ NULL` — повторное уведомление не чаще 1 раза в 24 часа (обновлять timestamp при отправке).
@@ -762,6 +777,8 @@ cancel_reason           TEXT NULL
 deleted_at              TIMESTAMPTZ NULL
 deleted_by_user_id      UUID NULL REFERENCES users(id)
 delete_comment          TEXT NULL
+telegram_message_id     BIGINT NULL
+  -- message_id карточки в TELEGRAM_CHAT_ID; NULL до первого sendMessage
 created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
@@ -1372,7 +1389,7 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 | **2** | R2 presign/confirm/download (+ idempotent confirm, key format) |
 | **3** | UI orders (list, create, detail, modals) |
 | **4** | Workshop queue |
-| **5** | Comments, notifications (push + TG) |
+| **5** | Comments; notifications (Web Push + TG **живая карточка** §10.3) |
 | **6** | Tasks, clients |
 | **7** | SLA cron (`[sla]` logs) + admin SLA UI |
 | **8** | Reports + export |
@@ -1424,10 +1441,13 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 
 ### 22.6 Уведомления
 
-- [ ] Новый заказ — не другим точкам  
-- [ ] Готов к выдаче → courier  
-- [ ] ☑ Проблемный макет → push + TG  
-- [ ] SLA overdue → push + TG (cron, дедуп 24ч)  
+- [ ] Новый заказ — Web Push не другим точкам  
+- [ ] Готов к выдаче → courier (push)  
+- [ ] ☑ Проблемный макет → push + пометка в TG-карточке  
+- [ ] SLA overdue → push + пометка в TG-карточке (cron, дедуп 24ч)  
+- [ ] TG: одна карточка на заказ; создание при новом заказе; **edit** при смене статуса (в т.ч. cancelled/delivered)  
+- [ ] TG: статус в карточке **жирным**; при комментарии — последний комментарий (courier не пишет)  
+- [ ] TG: ошибки не откатывают CRM; fallback sendMessage при failed edit  
 
 ### 22.7 Модули
 
@@ -1506,7 +1526,8 @@ design-system/dkprint-crm/     # MASTER.md + styles.css
 | 1.1 | авг 2026 | Гигиена кода; auth/session; Telegram outbound-only; Vercel Cron SLA; soft-delete = пароль текущего user; `sla_overdue_notified_at`; канон фона `#f3f7f9`; DoD; уточнение ролей на courier-этапах |
 | 1.2 | авг 2026 | Усиление §20: модуль прав + `assertOrderAccess`; money/Decimal; Next `"use server"` barrel; hotspots; R2/SLA ops; тесты admin jump/soft-delete; OPS/HANDOFF; Cursor rules; фазы 0–2 уточнены |
 | 1.3 | авг 2026 | Выравнивание: R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = Auth.js v5 Credentials (JWT session default) |
+| 1.4 | авг 2026 | Telegram: живая карточка заказа (`sendMessage` + `editMessageText`); `orders.telegram_message_id`; статус жирным; комментарии обновляют карточку; cancelled/delivered тоже edit; Web Push event-driven без изменений |
 
 ---
 
-*DKPrint CRM TZ v1.3 — август 2026. Изменение scope — только новой версией этого файла.*
+*DKPrint CRM TZ v1.4 — август 2026. Изменение scope — только новой версией этого файла.*
