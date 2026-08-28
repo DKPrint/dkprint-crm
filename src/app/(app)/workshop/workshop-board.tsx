@@ -133,6 +133,8 @@ function WorkshopCard({ order, pending, onPrev, onNext }: CardProps) {
     slaStoppedAt: order.slaStoppedAt,
     status: order.status,
   });
+  const prevLabel = order.statusPrev ? statusLabel(order.statusPrev) : null;
+  const nextLabel = order.statusNext ? statusLabel(order.statusNext) : null;
 
   return (
     <article className="workshop-card card">
@@ -151,20 +153,20 @@ function WorkshopCard({ order, pending, onPrev, onNext }: CardProps) {
         <button
           type="button"
           className="btn btn-secondary btn-lg workshop-btn"
-          disabled={pending}
-          aria-label="Предыдущий статус"
+          disabled={pending || !order.statusPrev}
+          aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
           onClick={onPrev}
         >
-          ←
+          {prevLabel ? `← ${prevLabel}` : '←'}
         </button>
         <button
           type="button"
           className="btn btn-primary btn-lg workshop-btn"
-          disabled={pending}
-          aria-label="Следующий статус"
+          disabled={pending || !order.statusNext}
+          aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
           onClick={onNext}
         >
-          →
+          {nextLabel ? `${nextLabel} →` : '→'}
         </button>
       </div>
     </article>

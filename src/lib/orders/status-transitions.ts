@@ -146,6 +146,32 @@ export function canTransition(
   return edge.roles.includes(role);
 }
 
+/** Single neighbor step for ←/→ (same logic as applyStatusChange). */
+export function findNeighborStatus(
+  edges: readonly TransitionEdge[],
+  from: OrderStatus,
+  direction: 'forward' | 'backward',
+  role: Role,
+): OrderStatus | null {
+  const matches = edges.filter(
+    (e) => e.from === from && e.direction === direction && e.roles.includes(role),
+  );
+  if (matches.length !== 1) return null;
+  return matches[0]!.to;
+}
+
+/** Prev/next neighbor statuses for UI labels (null when unavailable for role). */
+export function getStatusNeighbors(
+  status: OrderStatus,
+  role: Role,
+  edges: readonly TransitionEdge[],
+): { prev: OrderStatus | null; next: OrderStatus | null } {
+  return {
+    prev: findNeighborStatus(edges, status, 'backward', role),
+    next: findNeighborStatus(edges, status, 'forward', role),
+  };
+}
+
 /** @deprecated Prefer SEED_TRANSITIONS — kept for callers that listed seed edges. */
 export function listTransitions(): readonly TransitionEdge[] {
   return SEED_TRANSITIONS;

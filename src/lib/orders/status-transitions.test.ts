@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { can } from '@/lib/auth/permissions';
 import {
   canTransition,
+  getStatusNeighbors,
   hasCancelEdge,
   SEED_TRANSITIONS,
   type OrderStatus,
@@ -133,5 +134,25 @@ describe('status-transitions', () => {
     assert.equal(can('photo_center', 'cancel_order', allFlagsOn), true);
     assert.equal(can('photo_center', 'cancel_order'), false);
     assert.equal(can('designer', 'cancel_order', allFlagsOn), false);
+  });
+});
+
+describe('getStatusNeighbors', () => {
+  it('production at in_production has at_designer prev and ready_for_pickup next', () => {
+    const n = getStatusNeighbors('in_production', 'production', SEED_TRANSITIONS);
+    assert.equal(n.prev, 'at_designer');
+    assert.equal(n.next, 'ready_for_pickup');
+  });
+
+  it('courier at new has no neighbors', () => {
+    const n = getStatusNeighbors('new', 'courier', SEED_TRANSITIONS);
+    assert.equal(n.prev, null);
+    assert.equal(n.next, null);
+  });
+
+  it('production at ready_for_pickup cannot advance to with_courier', () => {
+    const n = getStatusNeighbors('ready_for_pickup', 'production', SEED_TRANSITIONS);
+    assert.equal(n.prev, 'in_production');
+    assert.equal(n.next, null);
   });
 });

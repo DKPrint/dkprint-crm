@@ -4,9 +4,9 @@ import { can, type PermissionFlags } from '@/lib/auth/permissions';
 import { loadActiveTransitions } from './load-transitions';
 import {
   canTransition,
+  findNeighborStatus,
   hasCancelEdge,
   type OrderStatus,
-  type TransitionEdge,
 } from './status-transitions';
 import { isOrderStatus } from './edit-policy';
 
@@ -25,19 +25,6 @@ type OrderRow = {
   status: string;
   deleted_at: string | null;
 };
-
-function findNeighbor(
-  edges: readonly TransitionEdge[],
-  from: OrderStatus,
-  direction: 'forward' | 'backward',
-  role: SessionUser['role'],
-): OrderStatus | null {
-  const matches = edges.filter(
-    (e) => e.from === from && e.direction === direction && e.roles.includes(role),
-  );
-  if (matches.length !== 1) return null;
-  return matches[0]!.to;
-}
 
 /**
  * Apply status change with optimistic lock + status event (TZ §5).
@@ -83,11 +70,11 @@ export async function applyStatusChange(args: ApplyStatusArgs): Promise<{
   const reason: string | null = args.reason?.trim() || null;
 
   if (mode === 'next') {
-    const next = findNeighbor(edges, fromStatus, 'forward', user.role);
+    const next = findNeighborStatus(edges, fromStatus, 'forward', user.role);
     if (!next) throw new Error('invalid_transition');
     toStatus = next;
   } else if (mode === 'prev') {
-    const prev = findNeighbor(edges, fromStatus, 'backward', user.role);
+    const prev = findNeighborStatus(edges, fromStatus, 'backward', user.role);
     if (!prev) throw new Error('invalid_transition');
     toStatus = prev;
   } else if (mode === 'jump') {

@@ -1,6 +1,9 @@
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
 import { sql } from '@/lib/db';
 import { toApiNumber } from '@/lib/money';
+import { isOrderStatus } from '@/lib/orders/edit-policy';
+import { loadActiveTransitions } from '@/lib/orders/load-transitions';
+import { getStatusNeighbors, type OrderStatus } from '@/lib/orders/status-transitions';
 import { assertWorkshopAccess } from './access';
 import { WORKSHOP_STATUSES } from './constants';
 
@@ -24,10 +27,16 @@ export type WorkshopOrder = {
   slaStartedAt: string;
   slaStoppedAt: string | null;
   createdAt: string;
+  statusPrev: OrderStatus | null;
+  statusNext: OrderStatus | null;
 };
 
-function serialize(row: DbWorkshopOrder): WorkshopOrder {
-  return {
+function serialize(
+  row: DbWorkshopOrder,
+  role: SessionUser['role'],
+  edges: Awaited<ReturnType<typeof loadActiveTransitions>>,
+): WorkshopOrder {
+  const base = {
     id: row.id,
     orderNumber: row.order_number,
     clientName: row.client_name,
@@ -36,7 +45,15 @@ function serialize(row: DbWorkshopOrder): WorkshopOrder {
     slaStartedAt: row.sla_started_at,
     slaStoppedAt: row.sla_stopped_at,
     createdAt: row.created_at,
+    statusPrev: null as OrderStatus | null,
+    statusNext: null as OrderStatus | null,
   };
+  if (isOrderStatus(row.status)) {
+    const neighbors = getStatusNeighbors(row.status, role, edges);
+    base.statusPrev = neighbors.prev;
+    base.statusNext = neighbors.next;
+  }
+  return base;
 }
 
 /**
@@ -65,5 +82,6 @@ export async function listWorkshopQueue(user: SessionUser): Promise<WorkshopOrde
       o.created_at ASC
   `) as DbWorkshopOrder[];
 
-  return rows.map(serialize);
+  const edges = await loadActiveTransitions();
+  return rows.map((row) => serialize(row, user.role, edges));
 }

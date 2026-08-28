@@ -696,11 +696,17 @@ table.data tbody tr.is-clickable {
   margin-top: var(--space-md);
 }
 
+.status-toolbar {
+  flex-wrap: wrap;
+}
+
 .workshop-btn {
   min-height: 56px;
-  font-size: 24px;
+  font-size: clamp(14px, 2vw, 18px);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
 }
 
 @media (max-width: 1200px) {

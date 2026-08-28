@@ -22,6 +22,8 @@ export function StatusControls({ order, role, onError, onSuccess }: Props) {
   if (role === 'photo_center') return null;
 
   const locked = Boolean(order.deletedAt) || order.status === 'cancelled';
+  const prevLabel = order.statusPrev ? statusLabel(order.statusPrev) : null;
+  const nextLabel = order.statusNext ? statusLabel(order.statusNext) : null;
 
   async function postStatus(path: string, body?: unknown) {
     onError(null);
@@ -50,24 +52,24 @@ export function StatusControls({ order, role, onError, onSuccess }: Props) {
   return (
     <section className="card">
       <h2>Статус</h2>
-      <div className="toolbar" style={{ marginBottom: 0 }}>
+      <div className="toolbar status-toolbar" style={{ marginBottom: 0 }}>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={pending || locked}
+          disabled={pending || locked || !order.statusPrev}
           onClick={() => void postStatus(`/api/orders/${order.id}/status/prev`)}
-          aria-label="Предыдущий статус"
+          aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
         >
-          ←
+          {prevLabel ? `← ${prevLabel}` : '←'}
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={pending || locked}
+          disabled={pending || locked || !order.statusNext}
           onClick={() => void postStatus(`/api/orders/${order.id}/status/next`)}
-          aria-label="Следующий статус"
+          aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
         >
-          →
+          {nextLabel ? `${nextLabel} →` : '→'}
         </button>
         {role === 'admin' ? (
           <button

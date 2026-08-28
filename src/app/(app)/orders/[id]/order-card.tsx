@@ -56,6 +56,8 @@ export type OrderDetail = {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  statusPrev: string | null;
+  statusNext: string | null;
   items: OrderItem[];
   files: OrderFile[];
 };

@@ -6,6 +6,9 @@ import {
   type SessionUser,
 } from '@/lib/auth/assertOrderAccess';
 import { listFilesForOrder } from '@/lib/files/queries';
+import { isOrderStatus } from './edit-policy';
+import { loadActiveTransitions } from './load-transitions';
+import { getStatusNeighbors, type OrderStatus } from './status-transitions';
 
 export type OrderListFilters = {
   status?: string[];
@@ -127,8 +130,19 @@ export async function getOrderById(
   const files =
     user.role === 'courier' ? [] : await listFilesForOrder(user, orderId, { includeDeleted });
 
+  let statusPrev: OrderStatus | null = null;
+  let statusNext: OrderStatus | null = null;
+  if (user.role !== 'photo_center' && isOrderStatus(order.status)) {
+    const edges = await loadActiveTransitions();
+    const neighbors = getStatusNeighbors(order.status, user.role, edges);
+    statusPrev = neighbors.prev;
+    statusNext = neighbors.next;
+  }
+
   return {
     ...serializeOrder(order),
+    statusPrev,
+    statusNext,
     items: items.map(serializeItem),
     files,
   };
