@@ -29,7 +29,11 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'file_too_large':
       return jsonError(400, code, 'Файл больше 100 МБ');
     case 'invalid_mime':
-      return jsonError(400, code, 'Недопустимый тип файла');
+      return jsonError(
+        400,
+        code,
+        'Недопустимый тип файла (JPEG, PNG, WebP, GIF, TIFF, PDF, ZIP)',
+      );
     case 'invalid_filename':
       return jsonError(400, code, 'Недопустимое имя файла');
     case 'r2_not_configured':

@@ -4,7 +4,12 @@ import { useRef, useState } from 'react';
 import type { Role } from '@/lib/auth/permissions';
 import { canUploadBlock } from '@/lib/files/permissions';
 import type { FileBlock } from '@/lib/files/constants';
-import { ALLOWED_MIME_TYPES, MAX_FILE_BYTES } from '@/lib/files/constants';
+import {
+  ALLOWED_FORMATS_LABEL,
+  FILE_INPUT_ACCEPT,
+  MAX_FILE_BYTES,
+  resolveUploadMimeType,
+} from '@/lib/files/constants';
 import { apiErrorMessage, type OrderDetail, type OrderFile } from '../order-card';
 
 type Props = {
@@ -71,8 +76,9 @@ export function OrderFiles({ order, role, onError, onSuccess }: Props) {
   }
 
   async function uploadFile(itemId: string, block: FileBlock, file: File) {
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      onError('Недопустимый тип файла (JPEG, PNG, PDF, ZIP)');
+    const mimeType = resolveUploadMimeType(file);
+    if (!mimeType) {
+      onError(`Недопустимый тип файла (${ALLOWED_FORMATS_LABEL})`);
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
@@ -92,7 +98,7 @@ export function OrderFiles({ order, role, onError, onSuccess }: Props) {
           itemId,
           block,
           filename: file.name,
-          mimeType: file.type,
+          mimeType,
           sizeBytes: file.size,
         }),
       });
@@ -109,7 +115,7 @@ export function OrderFiles({ order, role, onError, onSuccess }: Props) {
 
       const putRes = await fetch(presignData.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type },
+        headers: { 'Content-Type': mimeType },
         body: file,
       });
       if (!putRes.ok) {
@@ -164,11 +170,14 @@ export function OrderFiles({ order, role, onError, onSuccess }: Props) {
   return (
     <section className="card">
       <h2>Файлы</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Разрешено: {ALLOWED_FORMATS_LABEL}. До {Math.round(MAX_FILE_BYTES / (1024 * 1024))} МБ.
+      </p>
       <input
         ref={inputRef}
         type="file"
         hidden
-        accept=".jpg,.jpeg,.png,.pdf,.zip,image/jpeg,image/png,application/pdf,application/zip"
+        accept={FILE_INPUT_ACCEPT}
         onChange={onFileSelected}
       />
 

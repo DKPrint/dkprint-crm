@@ -481,7 +481,7 @@ GET /api/files/:fileId/download → { downloadUrl }  signed GET TTL 1–5 мин
 | Параметр | Значение |
 |----------|----------|
 | Max размер | 100 МБ |
-| MIME | `image/jpeg`, `image/png`, `application/pdf`, `application/zip` (+ расширение по согласованию) |
+| MIME | `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `image/tiff`, `application/pdf`, `application/zip` |
 | Soft-delete заказа | объекты R2 не удалять |
 | Orphan pending | опционально: cron помечает `failed` старше 24ч — не обязательно в v1 |
 

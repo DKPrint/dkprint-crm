@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       const code = issue?.message === 'file_too_large' ? 'file_too_large' : 'validation';
       const message =
         issue?.message === 'invalid_mime'
-          ? 'Недопустимый тип файла'
+          ? 'Недопустимый тип файла (JPEG, PNG, WebP, GIF, TIFF, PDF, ZIP)'
           : issue?.message === 'file_too_large'
             ? 'Файл больше 100 МБ'
             : parsed.error.message;
