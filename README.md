@@ -39,13 +39,13 @@
 
 ### Demo logins (`seed:demo`)
 
-| Email | Role | Client |
-|-------|------|--------|
-| `point-a@dkprint.local` | photo_center | Точка А |
-| `point-b@dkprint.local` | photo_center | Точка Б |
-| `production@dkprint.local` | production | — |
-| `designer@dkprint.local` | designer | — |
-| `courier@dkprint.local` | courier | — |
+| Email                      | Role         | Client  |
+| -------------------------- | ------------ | ------- |
+| `point-a@dkprint.local`    | photo_center | Точка А |
+| `point-b@dkprint.local`    | photo_center | Точка Б |
+| `production@dkprint.local` | production   | —       |
+| `designer@dkprint.local`   | designer     | —       |
+| `courier@dkprint.local`    | courier      | —       |
 
 Default password: `Demo123!` (override with `SEED_DEMO_PASSWORD`).
 
