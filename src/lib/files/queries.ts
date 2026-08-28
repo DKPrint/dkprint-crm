@@ -81,9 +81,7 @@ export async function listFilesForOrder(
   return rows.map(serializeFile);
 }
 
-export async function getFileWithOrder(
-  fileId: string,
-): Promise<
+export async function getFileWithOrder(fileId: string): Promise<
   DbFileRow & {
     order_number: string;
     client_id: string;
