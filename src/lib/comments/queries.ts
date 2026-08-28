@@ -62,10 +62,33 @@ export async function listCommentsForOrder(
     FROM comments c
     JOIN users u ON u.id = c.user_id
     WHERE c.order_id = ${orderId}
-    ORDER BY c.created_at ASC
+    ORDER BY c.created_at DESC
   `) as DbComment[];
 
   return rows.map(serialize);
+}
+
+/** Clear ⚠️ Problematic layout on all comments (TZ §10.1 — production/admin). */
+export async function clearProblematicLayout(
+  user: SessionUser,
+  orderId: string,
+): Promise<{ cleared: number }> {
+  if (user.role !== 'admin' && user.role !== 'production') {
+    throw new Error('forbidden');
+  }
+
+  const order = await getOrderAccessRow(orderId);
+  assertOrderAccess(user, order);
+  if (order.deleted_at) throw new Error('forbidden');
+
+  const rows = (await sql`
+    UPDATE comments
+    SET is_problematic_layout = false
+    WHERE order_id = ${orderId} AND is_problematic_layout = true
+    RETURNING id
+  `) as Array<{ id: string }>;
+
+  return { cleared: rows.length };
 }
 
 export async function createComment(
@@ -97,4 +120,13 @@ export async function createComment(
   const authorName = (authorRows[0] as { display_name: string } | undefined)?.display_name ?? '—';
 
   return serialize({ ...row, author_name: authorName });
+}
+
+export async function orderHasProblematicLayout(orderId: string): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM comments
+    WHERE order_id = ${orderId} AND is_problematic_layout = true
+    LIMIT 1
+  `;
+  return rows.length > 0;
 }

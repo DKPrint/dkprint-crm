@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildOrderTelegramCard, escapeHtml, syncTelegramCardCore } from './telegram';
+import {
+  buildOrderTelegramCard,
+  escapeHtml,
+  isTelegramNotModifiedError,
+  syncTelegramCardCore,
+} from './telegram';
 import type { OrderTelegramCard } from './types';
 
 const sampleOrder: OrderTelegramCard = {
@@ -59,6 +64,24 @@ describe('syncTelegramCardCore', () => {
     assert.equal(sendCalls, 1);
   });
 
+  it('treats message-is-not-modified as successful edit', async () => {
+    let sendCalls = 0;
+    const result = await syncTelegramCardCore(99, 'text', {
+      send: async () => {
+        sendCalls += 1;
+        return 100;
+      },
+      edit: async () => {
+        throw new Error(
+          'Bad Request: message is not modified: specified new message content and reply markup are exactly the same',
+        );
+      },
+    });
+    assert.equal(result.mode, 'edit');
+    assert.equal(result.messageId, 99);
+    assert.equal(sendCalls, 0);
+  });
+
   it('edits when message id exists', async () => {
     let sendCalls = 0;
     let editCalls = 0;
@@ -76,5 +99,15 @@ describe('syncTelegramCardCore', () => {
     assert.equal(result.messageId, 99);
     assert.equal(sendCalls, 0);
     assert.equal(editCalls, 1);
+  });
+});
+
+describe('isTelegramNotModifiedError', () => {
+  it('detects telegram not-modified description', () => {
+    assert.equal(
+      isTelegramNotModifiedError(new Error('Bad Request: message is not modified')),
+      true,
+    );
+    assert.equal(isTelegramNotModifiedError(new Error('message not found')), false);
   });
 });

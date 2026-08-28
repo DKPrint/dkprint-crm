@@ -4,6 +4,8 @@ import { statusLabel } from '@/lib/orders/status-labels';
 import { logNotification } from './log';
 import type { OrderTelegramCard, TelegramCardFlags } from './types';
 
+const DEFAULT_SLA_HOURS = 72;
+
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -35,7 +37,13 @@ type TelegramHandlers = {
   edit: (messageId: number, text: string) => Promise<void>;
 };
 
-/** Core sync: edit existing message or send; fallback send on edit failure. */
+/** Telegram returns 400 when edit content is unchanged — not a real failure. */
+export function isTelegramNotModifiedError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /message is not modified/i.test(msg);
+}
+
+/** Core sync: edit existing message or send; fallback send on real edit failure. */
 export async function syncTelegramCardCore(
   existingMessageId: number | null,
   text: string,
@@ -45,7 +53,10 @@ export async function syncTelegramCardCore(
     try {
       await handlers.edit(existingMessageId, text);
       return { messageId: existingMessageId, mode: 'edit' };
-    } catch {
+    } catch (err) {
+      if (isTelegramNotModifiedError(err)) {
+        return { messageId: existingMessageId, mode: 'edit' };
+      }
       const id = await handlers.send(text);
       return { messageId: id, mode: 'send' };
     }
@@ -101,10 +112,17 @@ function createTelegramHandlers(token: string, chatId: string): TelegramHandlers
   };
 }
 
-export async function loadOrderTelegramCard(orderId: string): Promise<OrderTelegramCard | null> {
+type OrderTelegramRow = OrderTelegramCard & {
+  slaStartedAt: string;
+  slaStoppedAt: string | null;
+  status: string;
+};
+
+export async function loadOrderTelegramCard(orderId: string): Promise<OrderTelegramRow | null> {
   const rows = await sql`
     SELECT
       o.id, o.order_number, o.status, o.total_amount, o.telegram_message_id,
+      o.sla_started_at, o.sla_stopped_at,
       c.name AS client_name
     FROM orders o
     JOIN clients c ON c.id = o.client_id
@@ -118,6 +136,8 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
         status: string;
         total_amount: string;
         telegram_message_id: string | number | null;
+        sla_started_at: string;
+        sla_stopped_at: string | null;
         client_name: string | null;
       }
     | undefined;
@@ -139,17 +159,31 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
     totalAmount: row.total_amount,
     telegramMessageId: row.telegram_message_id != null ? Number(row.telegram_message_id) : null,
     lastComment,
+    slaStartedAt: row.sla_started_at,
+    slaStoppedAt: row.sla_stopped_at,
   };
 }
 
-async function saveTelegramMessageId(orderId: string, messageId: number): Promise<void> {
+async function saveTelegramMessageId(orderId: string, messageId: number): Promise<boolean> {
+  // Only set if empty — prevents late create-send from overwriting an id
+  // set by a concurrent status sync (still may have sent a duplicate message).
+  const rows = await sql`
+    UPDATE orders
+    SET telegram_message_id = ${messageId}, updated_at = now()
+    WHERE id = ${orderId} AND telegram_message_id IS NULL
+    RETURNING id
+  `;
+  if (rows.length > 0) return true;
+
   await sql`
-    UPDATE orders SET telegram_message_id = ${messageId}, updated_at = now()
+    UPDATE orders
+    SET telegram_message_id = ${messageId}, updated_at = now()
     WHERE id = ${orderId}
   `;
+  return true;
 }
 
-async function hasProblematicComment(orderId: string): Promise<boolean> {
+export async function hasProblematicComment(orderId: string): Promise<boolean> {
   const rows = await sql`
     SELECT 1 FROM comments
     WHERE order_id = ${orderId} AND is_problematic_layout = true
@@ -158,13 +192,22 @@ async function hasProblematicComment(orderId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+function isSlaOverdue(order: OrderTelegramRow): boolean {
+  if (order.slaStoppedAt) return false;
+  if (order.status === 'cancelled' || order.status === 'delivered') return false;
+  const started = new Date(order.slaStartedAt).getTime();
+  if (!Number.isFinite(started)) return false;
+  return Date.now() - started > DEFAULT_SLA_HOURS * 60 * 60 * 1000;
+}
+
 async function resolveCardFlags(
-  orderId: string,
+  order: OrderTelegramRow,
   opts: TelegramCardFlags,
 ): Promise<TelegramCardFlags> {
   return {
-    problematicLayout: opts.problematicLayout === true || (await hasProblematicComment(orderId)),
-    slaOverdue: opts.slaOverdue === true,
+    // Always from DB so clearing comments clears the TG badge
+    problematicLayout: await hasProblematicComment(order.id),
+    slaOverdue: opts.slaOverdue === true || isSlaOverdue(order),
   };
 }
 
@@ -175,18 +218,40 @@ export async function sendOrderTelegramCard(orderId: string): Promise<boolean> {
   const order = await loadOrderTelegramCard(orderId);
   if (!order) return false;
 
-  const flags = await resolveCardFlags(orderId, {});
+  // Late create hook after status already sent a card — do not send a second message
+  if (order.telegramMessageId != null) {
+    return syncOrderTelegramCard(orderId);
+  }
+
+  const flags = await resolveCardFlags(order, {});
   const text = buildOrderTelegramCard(order, flags);
 
   try {
+    // Re-check before send (race with status sync)
+    const again = await loadOrderTelegramCard(orderId);
+    if (again?.telegramMessageId != null) {
+      return syncOrderTelegramCard(orderId);
+    }
+
     const handlers = createTelegramHandlers(env.token, env.chatId);
     const messageId = await handlers.send(text);
-    await saveTelegramMessageId(orderId, messageId);
+
+    // If another worker already saved an id, keep theirs (orphan TG message possible)
+    const claimed = await sql`
+      UPDATE orders
+      SET telegram_message_id = ${messageId}, updated_at = now()
+      WHERE id = ${orderId} AND telegram_message_id IS NULL
+      RETURNING id
+    `;
+    if (claimed.length === 0) {
+      console.warn('[telegram] sendOrderTelegramCard: id already set, skipping overwrite', orderId);
+    }
+
     await logNotification({
       eventType: 'order_created',
       orderId,
       sentTelegram: true,
-      payload: { mode: 'send', messageId },
+      payload: { mode: 'send', messageId, claimed: claimed.length > 0 },
     });
     return true;
   } catch (err) {
@@ -211,17 +276,17 @@ export async function syncOrderTelegramCard(
   const order = await loadOrderTelegramCard(orderId);
   if (!order) return false;
 
-  const flags = await resolveCardFlags(orderId, opts);
+  const flags = await resolveCardFlags(order, opts);
   const text = buildOrderTelegramCard(order, flags);
 
   try {
     const handlers = createTelegramHandlers(env.token, env.chatId);
     const result = await syncTelegramCardCore(order.telegramMessageId, text, handlers);
-    if (result.mode === 'send' || result.messageId !== order.telegramMessageId) {
+    if (result.messageId !== order.telegramMessageId) {
       await saveTelegramMessageId(orderId, result.messageId);
     }
     await logNotification({
-      eventType: 'status_changed',
+      eventType: 'telegram_sync',
       orderId,
       sentTelegram: true,
       payload: { mode: result.mode, messageId: result.messageId, flags },
@@ -230,7 +295,7 @@ export async function syncOrderTelegramCard(
   } catch (err) {
     console.error('[telegram] syncOrderTelegramCard', orderId, err);
     await logNotification({
-      eventType: 'status_changed',
+      eventType: 'telegram_sync',
       orderId,
       sentTelegram: false,
       payload: { error: String(err), flags: opts },

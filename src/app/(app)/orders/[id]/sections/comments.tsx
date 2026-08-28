@@ -29,9 +29,14 @@ function formatTs(iso: string): string {
   }
 }
 
+function canClearProblematic(role: Role): boolean {
+  return role === 'admin' || role === 'production';
+}
+
 export function CommentsSection({ orderId, role, onError }: Props) {
   const canWrite = canWriteComment({ id: '', role, clientId: null });
   const [comments, setComments] = useState<OrderComment[]>([]);
+  const [hasProblematicLayout, setHasProblematicLayout] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [body, setBody] = useState('');
@@ -49,6 +54,7 @@ export function CommentsSection({ orderId, role, onError }: Props) {
         });
         const data = (await res.json()) as {
           comments?: OrderComment[];
+          hasProblematicLayout?: boolean;
           error?: string;
           message?: string;
         };
@@ -59,6 +65,7 @@ export function CommentsSection({ orderId, role, onError }: Props) {
         } else {
           setLoadError(null);
           setComments(data.comments ?? []);
+          setHasProblematicLayout(data.hasProblematicLayout === true);
         }
       } catch {
         if (!ac.signal.aborted) setLoadError('Ошибка загрузки комментариев');
@@ -96,7 +103,10 @@ export function CommentsSection({ orderId, role, onError }: Props) {
         return;
       }
       if (data.comment) {
-        setComments((prev) => [...prev, data.comment!]);
+        setComments((prev) => [data.comment!, ...prev]);
+        if (data.comment.isProblematicLayout) {
+          setHasProblematicLayout(true);
+        }
       }
       setBody('');
       setIsProblematicLayout(false);
@@ -107,9 +117,51 @@ export function CommentsSection({ orderId, role, onError }: Props) {
     }
   }
 
+  async function clearProblematic() {
+    onError(null);
+    setPending(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/comments`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearProblematicLayout: true }),
+      });
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        onError(apiErrorMessage(data, 'Не удалось снять флаг'));
+        return;
+      }
+      setHasProblematicLayout(false);
+      setComments((prev) => prev.map((c) => ({ ...c, isProblematicLayout: false })));
+    } catch {
+      onError('Не удалось снять флаг');
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <section className="card">
-      <h2>Комментарии</h2>
+      <div className="toolbar" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>Комментарии</h2>
+        {hasProblematicLayout && canClearProblematic(role) ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending}
+            onClick={() => void clearProblematic()}
+          >
+            Снять «Проблемный макет»
+          </button>
+        ) : null}
+      </div>
+
+      {hasProblematicLayout ? (
+        <p className="form-error" style={{ marginTop: 0 }}>
+          Активен флаг «Проблемный макет»
+        </p>
+      ) : null}
 
       {loading ? <p className="muted">Загрузка…</p> : null}
       {loadError ? <p className="form-error">{loadError}</p> : null}

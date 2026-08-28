@@ -1,6 +1,6 @@
 import { jsonError, jsonOk } from '@/lib/api/http';
 import { findSlaOverdueOrderIds } from '@/lib/notifications/dispatch';
-import { scheduleSlaOverdue } from '@/lib/notifications/hooks';
+import { runSlaOverdue } from '@/lib/notifications/hooks';
 
 function authorizeCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
@@ -12,7 +12,7 @@ function authorizeCron(request: Request): boolean {
 async function runSlaOverdueJob() {
   const orderIds = await findSlaOverdueOrderIds();
   for (const orderId of orderIds) {
-    scheduleSlaOverdue(orderId);
+    await runSlaOverdue(orderId);
   }
   return { processed: orderIds.length, orderIds };
 }
