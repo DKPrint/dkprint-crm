@@ -35,6 +35,8 @@ export async function POST(request: Request, ctx: Ctx) {
       body: parsed.data.body,
       isProblematicLayout: parsed.data.isProblematicLayout,
     });
+    const { scheduleCommentAdded } = await import('@/lib/notifications/hooks');
+    scheduleCommentAdded(id, parsed.data.isProblematicLayout);
     return jsonOk({ comment }, 201);
   } catch (err) {
     return jsonFromError(err);

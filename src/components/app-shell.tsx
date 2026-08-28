@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { signOut } from '@/auth';
+import { PushSubscribeBanner } from '@/components/push-subscribe-banner';
 import { SidebarNav } from '@/components/sidebar-nav';
 import type { NavItem } from '@/lib/auth/nav';
 import type { Role } from '@/lib/auth/permissions';
@@ -43,7 +44,10 @@ export function AppShell({ email, role, navItems, children }: AppShellProps) {
         </div>
       </header>
 
-      <main className="main">{children}</main>
+      <main className="main">
+        <PushSubscribeBanner />
+        {children}
+      </main>
     </div>
   );
 }

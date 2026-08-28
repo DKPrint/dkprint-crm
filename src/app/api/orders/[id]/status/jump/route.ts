@@ -22,6 +22,8 @@ export async function POST(request: Request, ctx: Ctx) {
       mode: 'jump',
       toStatus: parsed.data.toStatus,
     });
+    const { scheduleStatusChanged } = await import('@/lib/notifications/hooks');
+    scheduleStatusChanged(id, result.status);
     return jsonOk(result);
   } catch (err) {
     return jsonFromError(err);

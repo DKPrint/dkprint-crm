@@ -751,3 +751,28 @@ table.data tbody tr.is-clickable {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.push-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.push-banner-text {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  min-height: 32px;
+}

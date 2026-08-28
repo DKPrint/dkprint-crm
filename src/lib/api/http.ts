@@ -34,6 +34,8 @@ export function jsonFromError(err: unknown): NextResponse {
       return jsonError(400, code, 'Недопустимое имя файла');
     case 'r2_not_configured':
       return jsonError(503, code, 'Хранилище файлов не настроено');
+    case 'push_not_configured':
+      return jsonError(503, code, 'Web Push не настроен');
     case 'conflict':
     case 'status_conflict':
       return jsonError(409, code, 'Конфликт данных');

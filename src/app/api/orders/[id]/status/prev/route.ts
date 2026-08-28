@@ -11,6 +11,8 @@ export async function POST(_request: Request, ctx: Ctx) {
     const user = sessionUser(authResult);
     const { id } = await ctx.params;
     const result = await applyStatusChange({ orderId: id, user, mode: 'prev' });
+    const { scheduleStatusChanged } = await import('@/lib/notifications/hooks');
+    scheduleStatusChanged(id, result.status);
     return jsonOk(result);
   } catch (err) {
     return jsonFromError(err);

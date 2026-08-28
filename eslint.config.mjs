@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
       'src/lib/files/**/*.{ts,tsx}',
       'src/lib/workshop/**/*.{ts,tsx}',
       'src/lib/comments/**/*.{ts,tsx}',
+      'src/lib/notifications/**/*.{ts,tsx}',
     ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',

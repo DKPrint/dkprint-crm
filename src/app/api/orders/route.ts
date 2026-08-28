@@ -46,6 +46,8 @@ export async function POST(request: Request) {
     }
 
     const created = await createOrder(user, parsed.data);
+    const { scheduleOrderCreated } = await import('@/lib/notifications/hooks');
+    scheduleOrderCreated(created.id);
     return jsonOk(
       {
         order: {
