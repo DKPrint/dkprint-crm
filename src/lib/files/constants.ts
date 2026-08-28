@@ -47,10 +47,7 @@ const EXT_TO_MIME: Record<string, string> = {
 };
 
 /** Resolve MIME for upload; falls back to extension if `file.type` is empty/wrong. */
-export function resolveUploadMimeType(file: {
-  name: string;
-  type: string;
-}): string | null {
+export function resolveUploadMimeType(file: { name: string; type: string }): string | null {
   if (file.type && ALLOWED_MIME_TYPES.has(file.type)) {
     return file.type;
   }

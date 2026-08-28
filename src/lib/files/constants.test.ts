@@ -1,24 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  ALLOWED_MIME_TYPES,
-  resolveUploadMimeType,
-} from './constants';
+import { ALLOWED_MIME_TYPES, resolveUploadMimeType } from './constants';
 
 describe('resolveUploadMimeType', () => {
   it('accepts known MIME from file.type', () => {
-    assert.equal(
-      resolveUploadMimeType({ name: 'a.webp', type: 'image/webp' }),
-      'image/webp',
-    );
-    assert.equal(
-      resolveUploadMimeType({ name: 'a.gif', type: 'image/gif' }),
-      'image/gif',
-    );
-    assert.equal(
-      resolveUploadMimeType({ name: 'a.tiff', type: 'image/tiff' }),
-      'image/tiff',
-    );
+    assert.equal(resolveUploadMimeType({ name: 'a.webp', type: 'image/webp' }), 'image/webp');
+    assert.equal(resolveUploadMimeType({ name: 'a.gif', type: 'image/gif' }), 'image/gif');
+    assert.equal(resolveUploadMimeType({ name: 'a.tiff', type: 'image/tiff' }), 'image/tiff');
   });
 
   it('falls back to extension when type is empty', () => {
