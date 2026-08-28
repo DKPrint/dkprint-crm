@@ -600,9 +600,9 @@ ELSE:
 
 ### 12.2 Очередь цеха (`/workshop`)
 
-- Fullscreen / планшет
+- Компактная таблица (не планшетный kanban)
 - Статусы: `accepted`, `at_designer`, `in_production`, `ready_for_pickup`
-- Крупные ←/→ на карточке
+- Кнопки ←/→ в строке с именами целевых статусов
 - Polling **30–60 с** (или router refresh)
 - Доступ: production, designer, admin
 

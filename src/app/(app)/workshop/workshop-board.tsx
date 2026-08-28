@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { formatMoney2 } from '@/lib/money';
 import { computeSlaBadge } from '@/lib/orders/sla-badge';
 import { statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
-import { WORKSHOP_POLL_MS, WORKSHOP_STATUSES } from '@/lib/workshop/constants';
+import { WORKSHOP_POLL_MS } from '@/lib/workshop/constants';
 import type { WorkshopOrder } from '@/lib/workshop/queue';
 
 type Props = {
@@ -70,8 +70,6 @@ export function WorkshopBoard({ initialOrders }: Props) {
     }
   }
 
-  const byStatus = (status: string) => orders.filter((o) => o.status === status);
-
   return (
     <div className="workshop">
       <div className="workshop-head">
@@ -91,43 +89,51 @@ export function WorkshopBoard({ initialOrders }: Props) {
 
       {error ? <p className="form-error">{error}</p> : null}
 
-      <div className="workshop-board">
-        {WORKSHOP_STATUSES.map((status) => (
-          <section key={status} className="workshop-column" aria-label={statusLabel(status)}>
-            <header className="workshop-column-head">
-              <h2>{statusLabel(status)}</h2>
-              <span className="workshop-count">{byStatus(status).length}</span>
-            </header>
-            <div className="workshop-cards">
-              {byStatus(status).length === 0 ? (
-                <p className="muted workshop-empty">Нет заказов</p>
-              ) : (
-                byStatus(status).map((order) => (
-                  <WorkshopCard
-                    key={order.id}
-                    order={order}
-                    pending={pendingId === order.id}
-                    onPrev={() => void changeStatus(order.id, 'prev')}
-                    onNext={() => void changeStatus(order.id, 'next')}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        ))}
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Клиент</th>
+              <th>Статус</th>
+              <th>Сумма</th>
+              <th>SLA</th>
+              <th>Переход</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  Заказов в очереди нет
+                </td>
+              </tr>
+            ) : (
+              orders.map((order) => (
+                <WorkshopRow
+                  key={order.id}
+                  order={order}
+                  pending={pendingId === order.id}
+                  onPrev={() => void changeStatus(order.id, 'prev')}
+                  onNext={() => void changeStatus(order.id, 'next')}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-type CardProps = {
+type RowProps = {
   order: WorkshopOrder;
   pending: boolean;
   onPrev: () => void;
   onNext: () => void;
 };
 
-function WorkshopCard({ order, pending, onPrev, onNext }: CardProps) {
+function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
   const sla = computeSlaBadge({
     slaStartedAt: order.slaStartedAt,
     slaStoppedAt: order.slaStoppedAt,
@@ -137,38 +143,47 @@ function WorkshopCard({ order, pending, onPrev, onNext }: CardProps) {
   const nextLabel = order.statusNext ? statusLabel(order.statusNext) : null;
 
   return (
-    <article className="workshop-card card">
-      <div className="workshop-card-head">
-        <Link href={`/orders/${order.id}`} className="workshop-order-link mono">
+    <tr>
+      <td className="mono">
+        <Link href={`/orders/${order.id}`} className="linkish">
           {order.orderNumber}
         </Link>
+        {order.isUrgent ? (
+          <span className="workshop-urgent" title="Срочно">
+            Срочно
+          </span>
+        ) : null}
+      </td>
+      <td>{order.clientName ?? '—'}</td>
+      <td>
         <span className={statusBadgeClass(order.status)}>{statusLabel(order.status)}</span>
-      </div>
-      <p className="workshop-client">{order.clientName ?? '—'}</p>
-      <div className="workshop-meta">
-        <span className="mono">{formatMoney2(order.totalAmount)}</span>
+      </td>
+      <td className="mono">{formatMoney2(order.totalAmount)}</td>
+      <td>
         <span className={sla.badgeClass}>{sla.label}</span>
-      </div>
-      <div className="workshop-actions">
-        <button
-          type="button"
-          className="btn btn-secondary btn-lg workshop-btn"
-          disabled={pending || !order.statusPrev}
-          aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
-          onClick={onPrev}
-        >
-          {prevLabel ? `← ${prevLabel}` : '←'}
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary btn-lg workshop-btn"
-          disabled={pending || !order.statusNext}
-          aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
-          onClick={onNext}
-        >
-          {nextLabel ? `${nextLabel} →` : '→'}
-        </button>
-      </div>
-    </article>
+      </td>
+      <td>
+        <div className="workshop-actions">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={pending || !order.statusPrev}
+            aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
+            onClick={onPrev}
+          >
+            {prevLabel ? `← ${prevLabel}` : '←'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={pending || !order.statusNext}
+            aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
+            onClick={onNext}
+          >
+            {nextLabel ? `${nextLabel} →` : '→'}
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 }
