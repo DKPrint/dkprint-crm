@@ -134,7 +134,7 @@ export function OrderCard({ initialOrder, role, flags, categories }: Props) {
 
       <CourierSection order={order} role={role} onError={setError} onSuccess={afterMutation} />
 
-      {role !== 'courier' ? <CommentsSection /> : null}
+      <CommentsSection orderId={order.id} role={role} onError={setError} />
 
       <StatusEvents orderId={order.id} refreshKey={eventsKey} />
 
