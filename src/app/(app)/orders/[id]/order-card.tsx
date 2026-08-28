@@ -19,6 +19,7 @@ export type OrderItem = {
   positionNumber: number;
   categoryId: string;
   categoryName: string | null;
+  name: string;
   techParams: string | null;
   quantity: number;
   unitPrice: number;
@@ -138,7 +139,9 @@ export function OrderCard({ initialOrder, role, flags, categories }: Props) {
 
       <StatusEvents orderId={order.id} refreshKey={eventsKey} />
 
-      <AuditLogs orderId={order.id} refreshKey={auditKey} />
+      {role === 'admin' || role === 'production' ? (
+        <AuditLogs orderId={order.id} refreshKey={auditKey} />
+      ) : null}
 
       {role !== 'courier' ? <TasksSection /> : null}
 

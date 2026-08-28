@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const orderItemInputSchema = z.object({
   categoryId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
   techParams: z.string().nullable().optional(),
   quantity: z.number().int().positive(),
   unitPrice: z.union([z.string(), z.number()]).refine((v) => {
@@ -57,6 +58,7 @@ export const courierNoteSchema = z.object({
 
 export const patchItemSchema = z.object({
   categoryId: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   techParams: z.string().nullable().optional(),
   quantity: z.number().int().positive().optional(),
   reason: z.string().min(1).optional(),

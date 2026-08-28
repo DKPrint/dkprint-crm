@@ -19,6 +19,14 @@ type DbWorkshopOrder = {
   is_urgent: boolean;
 };
 
+export type WorkshopOrderItem = {
+  positionNumber: number;
+  name: string;
+  quantity: number;
+  techParams: string | null;
+  hasLayout: boolean;
+};
+
 export type WorkshopOrder = {
   id: string;
   orderNumber: string;
@@ -31,14 +39,16 @@ export type WorkshopOrder = {
   isUrgent: boolean;
   statusPrev: OrderStatus | null;
   statusNext: OrderStatus | null;
+  items: WorkshopOrderItem[];
 };
 
 function serialize(
   row: DbWorkshopOrder,
   role: SessionUser['role'],
   edges: Awaited<ReturnType<typeof loadActiveTransitions>>,
+  items: WorkshopOrderItem[],
 ): WorkshopOrder {
-  const base = {
+  const base: WorkshopOrder = {
     id: row.id,
     orderNumber: row.order_number,
     clientName: row.client_name,
@@ -48,8 +58,9 @@ function serialize(
     slaStoppedAt: row.sla_stopped_at,
     createdAt: row.created_at,
     isUrgent: row.is_urgent === true,
-    statusPrev: null as OrderStatus | null,
-    statusNext: null as OrderStatus | null,
+    statusPrev: null,
+    statusNext: null,
+    items,
   };
   if (isOrderStatus(row.status)) {
     const neighbors = getStatusNeighbors(row.status, role, edges);
@@ -86,5 +97,46 @@ export async function listWorkshopQueue(user: SessionUser): Promise<WorkshopOrde
   `) as DbWorkshopOrder[];
 
   const edges = await loadActiveTransitions();
-  return rows.map((row) => serialize(row, user.role, edges));
+  if (rows.length === 0) return [];
+
+  const orderIds = rows.map((r) => r.id);
+  const itemRows = (await sql`
+    SELECT
+      oi.order_id,
+      oi.position_number,
+      oi.name,
+      oi.quantity,
+      oi.tech_params,
+      EXISTS (
+        SELECT 1 FROM files f
+        WHERE f.order_item_id = oi.id
+          AND f.block = 'client'
+          AND f.upload_status = 'confirmed'
+      ) AS has_layout
+    FROM order_items oi
+    WHERE oi.order_id = ANY(${orderIds}::uuid[])
+    ORDER BY oi.position_number ASC
+  `) as Array<{
+    order_id: string;
+    position_number: number;
+    name: string;
+    quantity: number;
+    tech_params: string | null;
+    has_layout: boolean;
+  }>;
+
+  const itemsByOrder = new Map<string, WorkshopOrderItem[]>();
+  for (const row of itemRows) {
+    const list = itemsByOrder.get(row.order_id) ?? [];
+    list.push({
+      positionNumber: Number(row.position_number),
+      name: row.name,
+      quantity: Number(row.quantity),
+      techParams: row.tech_params,
+      hasLayout: row.has_layout === true,
+    });
+    itemsByOrder.set(row.order_id, list);
+  }
+
+  return rows.map((row) => serialize(row, user.role, edges, itemsByOrder.get(row.id) ?? []));
 }

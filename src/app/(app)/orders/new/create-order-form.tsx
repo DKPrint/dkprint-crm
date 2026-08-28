@@ -11,6 +11,7 @@ type Client = { id: string; name: string };
 type Line = {
   key: string;
   categoryId: string;
+  name: string;
   quantity: string;
   unitPrice: string;
   techParams: string;
@@ -27,6 +28,7 @@ function emptyLine(categories: Category[]): Line {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     categoryId: categories[0]?.id ?? '',
+    name: '',
     quantity: '1',
     unitPrice: '0',
     techParams: '',
@@ -87,6 +89,7 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
       const unitPrice = Number(it.unitPrice);
       return {
         categoryId: it.categoryId,
+        name: it.name.trim(),
         quantity,
         unitPrice,
         techParams: it.techParams.trim() ? it.techParams.trim() : null,
@@ -94,8 +97,8 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
     });
 
     for (const it of payloadItems) {
-      if (!it.categoryId || !Number.isInteger(it.quantity) || it.quantity <= 0) {
-        setError('Проверьте количество и категорию в позициях');
+      if (!it.categoryId || !it.name || !Number.isInteger(it.quantity) || it.quantity <= 0) {
+        setError('Проверьте наименование, количество и категорию в позициях');
         return;
       }
       if (!Number.isFinite(it.unitPrice) || it.unitPrice < 0) {
@@ -208,6 +211,15 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="field">
+              Наименование
+              <input
+                className="input"
+                value={it.name}
+                onChange={(e) => updateItem(it.key, { name: e.target.value })}
+                required
+              />
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <label className="field">

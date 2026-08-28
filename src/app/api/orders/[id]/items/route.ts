@@ -24,6 +24,7 @@ export async function POST(request: Request, ctx: Ctx) {
           id: item.id,
           positionNumber: item.position_number,
           categoryId: item.category_id,
+          name: item.name,
           techParams: item.tech_params,
           quantity: Number(item.quantity),
           unitPrice: toApiNumber(item.unit_price),

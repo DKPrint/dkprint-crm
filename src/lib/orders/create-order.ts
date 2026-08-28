@@ -7,6 +7,7 @@ import type { CreateOrderInput } from './schemas';
 
 export type CreateOrderItemInput = {
   categoryId: string;
+  name: string;
   techParams?: string | null;
   quantity: number;
   unitPrice: string | number;
@@ -35,6 +36,7 @@ export type CreatedItem = {
   id: string;
   positionNumber: number;
   categoryId: string;
+  name: string;
   techParams: string | null;
   quantity: number;
   unitPrice: string;
@@ -95,6 +97,7 @@ export async function createOrder(
     return {
       positionNumber: idx + 1,
       categoryId: it.categoryId,
+      name: it.name,
       techParams: it.techParams ?? null,
       quantity: it.quantity,
       unitPrice: unit,
@@ -111,6 +114,7 @@ export async function createOrder(
 
   const positions = prepared.map((p) => p.positionNumber);
   const categoryIds = prepared.map((p) => p.categoryId);
+  const names = prepared.map((p) => p.name);
   const techParams = prepared.map((p) => p.techParams ?? '');
   const quantities = prepared.map((p) => p.quantity);
   const unitPrices = prepared.map((p) => p.unitPrice);
@@ -151,13 +155,14 @@ export async function createOrder(
     ),
     items AS (
       INSERT INTO order_items (
-        order_id, position_number, category_id, tech_params,
+        order_id, position_number, category_id, name, tech_params,
         quantity, unit_price, line_total
       )
       SELECT
         ord.id,
         t.position_number,
         t.category_id,
+        t.name,
         NULLIF(t.tech_params, ''),
         t.quantity,
         t.unit_price,
@@ -166,16 +171,17 @@ export async function createOrder(
       CROSS JOIN unnest(
         ${positions}::int[],
         ${categoryIds}::uuid[],
+        ${names}::text[],
         ${techParams}::text[],
         ${quantities}::int[],
         ${unitPrices}::numeric[],
         ${lineTotals}::numeric[]
       ) AS t(
-        position_number, category_id, tech_params,
+        position_number, category_id, name, tech_params,
         quantity, unit_price, line_total
       )
       RETURNING
-        id, order_id, position_number, category_id, tech_params,
+        id, order_id, position_number, category_id, name, tech_params,
         quantity, unit_price, line_total
     )
     SELECT
@@ -207,6 +213,7 @@ export async function createOrder(
           id: string;
           position_number: number;
           category_id: string;
+          name: string;
           tech_params: string | null;
           quantity: number;
           unit_price: string;
@@ -248,6 +255,7 @@ export async function createOrder(
       id: i.id,
       positionNumber: i.position_number,
       categoryId: i.category_id,
+      name: i.name,
       techParams: i.tech_params,
       quantity: Number(i.quantity),
       unitPrice: formatMoney2(i.unit_price),

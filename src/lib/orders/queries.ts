@@ -49,6 +49,7 @@ type DbItem = {
   position_number: number;
   category_id: string;
   category_name: string | null;
+  name: string;
   tech_params: string | null;
   quantity: number;
   unit_price: string;
@@ -88,6 +89,7 @@ export function serializeItem(i: DbItem) {
     positionNumber: i.position_number,
     categoryId: i.category_id,
     categoryName: i.category_name ?? null,
+    name: i.name,
     techParams: i.tech_params,
     quantity: Number(i.quantity),
     unitPrice: toApiNumber(i.unit_price),
@@ -122,7 +124,7 @@ export async function getOrderById(
   const items = (await sql`
     SELECT
       oi.id, oi.order_id, oi.position_number, oi.category_id,
-      cat.name AS category_name, oi.tech_params,
+      cat.name AS category_name, oi.name, oi.tech_params,
       oi.quantity, oi.unit_price, oi.line_total
     FROM order_items oi
     LEFT JOIN categories cat ON cat.id = oi.category_id
@@ -219,13 +221,19 @@ export async function listStatusEvents(user: SessionUser, orderId: string) {
 }
 
 export async function listAuditLogs(user: SessionUser, orderId: string) {
+  if (user.role !== 'admin' && user.role !== 'production') {
+    throw new Error('forbidden');
+  }
   await getOrderAccessOnly(user, orderId);
   return sql`
-    SELECT id, order_id, order_item_id, action, field_name,
-           old_value, new_value, reason, user_id, created_at
-    FROM order_audit_logs
-    WHERE order_id = ${orderId}
-    ORDER BY created_at ASC
+    SELECT
+      a.id, a.order_id, a.order_item_id, a.action, a.field_name,
+      a.old_value, a.new_value, a.reason, a.user_id, a.created_at,
+      u.display_name AS user_display_name
+    FROM order_audit_logs a
+    LEFT JOIN users u ON u.id = a.user_id
+    WHERE a.order_id = ${orderId}
+    ORDER BY a.created_at ASC
   `;
 }
 

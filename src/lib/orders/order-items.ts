@@ -17,11 +17,30 @@ type ItemRow = {
   order_id: string;
   position_number: number;
   category_id: string;
+  name: string;
   tech_params: string | null;
   quantity: number;
   unit_price: string;
   line_total: string;
 };
+
+function itemSnapshot(item: {
+  name: string;
+  quantity: number;
+  unitPrice?: string;
+  lineTotal?: string;
+  categoryId?: string;
+  techParams?: string | null;
+}) {
+  return {
+    name: item.name,
+    quantity: item.quantity,
+    ...(item.categoryId !== undefined ? { categoryId: item.categoryId } : {}),
+    ...(item.techParams !== undefined ? { techParams: item.techParams } : {}),
+    ...(item.unitPrice !== undefined ? { unitPrice: item.unitPrice } : {}),
+    ...(item.lineTotal !== undefined ? { lineTotal: item.lineTotal } : {}),
+  };
+}
 
 async function loadOrderForEdit(orderId: string, user: SessionUser): Promise<OrderRow> {
   const rows = await sql`
@@ -45,11 +64,26 @@ function moneyFromDb(value: string | number): string {
   return formatMoney2(value);
 }
 
+function toItemRow(row: ItemRow): ItemRow {
+  return {
+    id: row.id,
+    order_id: row.order_id,
+    position_number: row.position_number,
+    category_id: row.category_id,
+    name: row.name,
+    tech_params: row.tech_params,
+    quantity: row.quantity,
+    unit_price: row.unit_price,
+    line_total: row.line_total,
+  };
+}
+
 export async function addOrderItem(
   user: SessionUser,
   orderId: string,
   input: {
     categoryId: string;
+    name: string;
     techParams?: string | null;
     quantity: number;
     unitPrice: string | number;
@@ -72,19 +106,20 @@ export async function addOrderItem(
   const rows = (await sql`
     WITH mutated AS (
       INSERT INTO order_items (
-        order_id, position_number, category_id, tech_params,
+        order_id, position_number, category_id, name, tech_params,
         quantity, unit_price, line_total
       )
       VALUES (
         ${orderId},
         ${positionNumber},
         ${input.categoryId}::uuid,
+        ${input.name},
         ${input.techParams ?? null},
         ${input.quantity},
         ${unit}::numeric,
         ${lt}::numeric
       )
-      RETURNING id, order_id, position_number, category_id, tech_params,
+      RETURNING id, order_id, position_number, category_id, name, tech_params,
                 quantity, unit_price, line_total
     ),
     totals AS (
@@ -101,7 +136,7 @@ export async function addOrderItem(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.tech_params,
+      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
       m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
@@ -111,16 +146,7 @@ export async function addOrderItem(
   const row = rows[0];
   if (!row) throw new Error('order_not_found');
 
-  const item: ItemRow = {
-    id: row.id,
-    order_id: row.order_id,
-    position_number: row.position_number,
-    category_id: row.category_id,
-    tech_params: row.tech_params,
-    quantity: row.quantity,
-    unit_price: row.unit_price,
-    line_total: row.line_total,
-  };
+  const item = toItemRow(row);
 
   await sql`
     INSERT INTO order_audit_logs (
@@ -131,7 +157,16 @@ export async function addOrderItem(
       ${item.id},
       'add_item',
       null,
-      ${JSON.stringify({ quantity: input.quantity, unitPrice: unit, lineTotal: lt })},
+      ${JSON.stringify(
+        itemSnapshot({
+          name: input.name,
+          quantity: input.quantity,
+          unitPrice: unit,
+          lineTotal: lt,
+          categoryId: input.categoryId,
+          techParams: input.techParams ?? null,
+        }),
+      )},
       ${input.reason ?? null},
       ${user.id}
     )
@@ -146,6 +181,7 @@ export async function patchOrderItem(
   itemId: string,
   input: {
     categoryId?: string;
+    name?: string;
     techParams?: string | null;
     quantity?: number;
     reason?: string;
@@ -155,7 +191,7 @@ export async function patchOrderItem(
   assertCanEditOrderFields(user, order, { reason: input.reason });
 
   const itemRows = await sql`
-    SELECT id, order_id, position_number, category_id, tech_params,
+    SELECT id, order_id, position_number, category_id, name, tech_params,
            quantity, unit_price, line_total
     FROM order_items
     WHERE id = ${itemId} AND order_id = ${orderId}
@@ -166,7 +202,24 @@ export async function patchOrderItem(
 
   const quantity = input.quantity ?? Number(existing.quantity);
   const categoryId = input.categoryId ?? existing.category_id;
+  const name = input.name ?? existing.name;
   const techParams = input.techParams !== undefined ? input.techParams : existing.tech_params;
+
+  const unchanged =
+    categoryId === existing.category_id &&
+    name === existing.name &&
+    (techParams ?? null) === (existing.tech_params ?? null) &&
+    quantity === Number(existing.quantity);
+
+  if (unchanged) {
+    const totalRows = await sql`
+      SELECT total_amount FROM orders WHERE id = ${orderId} LIMIT 1
+    `;
+    const totalAmount = (totalRows[0] as { total_amount: string } | undefined)?.total_amount;
+    if (totalAmount == null) throw new Error('order_not_found');
+    return { item: toItemRow(existing), totalAmount: moneyFromDb(totalAmount) };
+  }
+
   const unit = formatMoney2(existing.unit_price);
   const lt = formatMoney2(lineTotal(quantity, unit));
 
@@ -175,11 +228,12 @@ export async function patchOrderItem(
       UPDATE order_items
       SET
         category_id = ${categoryId}::uuid,
+        name = ${name},
         tech_params = ${techParams},
         quantity = ${quantity},
         line_total = ${lt}::numeric
       WHERE id = ${itemId} AND order_id = ${orderId}
-      RETURNING id, order_id, position_number, category_id, tech_params,
+      RETURNING id, order_id, position_number, category_id, name, tech_params,
                 quantity, unit_price, line_total
     ),
     totals AS (
@@ -196,7 +250,7 @@ export async function patchOrderItem(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.tech_params,
+      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
       m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
@@ -206,16 +260,7 @@ export async function patchOrderItem(
   const row = rows[0];
   if (!row) throw new Error('item_not_found');
 
-  const item: ItemRow = {
-    id: row.id,
-    order_id: row.order_id,
-    position_number: row.position_number,
-    category_id: row.category_id,
-    tech_params: row.tech_params,
-    quantity: row.quantity,
-    unit_price: row.unit_price,
-    line_total: row.line_total,
-  };
+  const item = toItemRow(row);
 
   await sql`
     INSERT INTO order_audit_logs (
@@ -225,9 +270,23 @@ export async function patchOrderItem(
       ${orderId},
       ${itemId},
       'patch_item',
-      'quantity',
-      ${String(existing.quantity)},
-      ${String(quantity)},
+      null,
+      ${JSON.stringify(
+        itemSnapshot({
+          name: existing.name,
+          quantity: Number(existing.quantity),
+          categoryId: existing.category_id,
+          techParams: existing.tech_params,
+        }),
+      )},
+      ${JSON.stringify(
+        itemSnapshot({
+          name,
+          quantity,
+          categoryId,
+          techParams: techParams ?? null,
+        }),
+      )},
       ${input.reason ?? null},
       ${user.id}
     )
@@ -325,7 +384,7 @@ export async function patchItemPrice(
   }
 
   const itemRows = await sql`
-    SELECT id, order_id, position_number, category_id, tech_params,
+    SELECT id, order_id, position_number, category_id, name, tech_params,
            quantity, unit_price, line_total
     FROM order_items
     WHERE id = ${itemId} AND order_id = ${orderId}
@@ -335,15 +394,25 @@ export async function patchItemPrice(
   if (!existing) throw new Error('item_not_found');
 
   const unit = formatMoney2(unitPrice);
-  const lt = formatMoney2(lineTotal(Number(existing.quantity), unit));
   const oldUnit = formatMoney2(existing.unit_price);
+
+  if (unit === oldUnit) {
+    const totalRows = await sql`
+      SELECT total_amount FROM orders WHERE id = ${orderId} LIMIT 1
+    `;
+    const totalAmount = (totalRows[0] as { total_amount: string } | undefined)?.total_amount;
+    if (totalAmount == null) throw new Error('order_not_found');
+    return { item: toItemRow(existing), totalAmount: moneyFromDb(totalAmount) };
+  }
+
+  const lt = formatMoney2(lineTotal(Number(existing.quantity), unit));
 
   const rows = (await sql`
     WITH mutated AS (
       UPDATE order_items
       SET unit_price = ${unit}::numeric, line_total = ${lt}::numeric
       WHERE id = ${itemId} AND order_id = ${orderId}
-      RETURNING id, order_id, position_number, category_id, tech_params,
+      RETURNING id, order_id, position_number, category_id, name, tech_params,
                 quantity, unit_price, line_total
     ),
     totals AS (
@@ -360,7 +429,7 @@ export async function patchItemPrice(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.tech_params,
+      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
       m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
@@ -370,16 +439,7 @@ export async function patchItemPrice(
   const row = rows[0];
   if (!row) throw new Error('item_not_found');
 
-  const item: ItemRow = {
-    id: row.id,
-    order_id: row.order_id,
-    position_number: row.position_number,
-    category_id: row.category_id,
-    tech_params: row.tech_params,
-    quantity: row.quantity,
-    unit_price: row.unit_price,
-    line_total: row.line_total,
-  };
+  const item = toItemRow(row);
 
   await sql`
     INSERT INTO order_audit_logs (

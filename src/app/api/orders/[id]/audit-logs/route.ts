@@ -22,6 +22,7 @@ export async function GET(_request: Request, ctx: Ctx) {
         newValue: l.new_value,
         reason: l.reason,
         userId: l.user_id,
+        userDisplayName: (l.user_display_name as string | null) ?? null,
         createdAt: l.created_at,
       })),
     });

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { formatMoney2 } from '@/lib/money';
+import { shortTech } from '@/lib/orders/format-tech';
 import { computeSlaBadge } from '@/lib/orders/sla-badge';
 import { statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
 import { WORKSHOP_POLL_MS } from '@/lib/workshop/constants';
@@ -143,47 +144,61 @@ function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
   const nextLabel = order.statusNext ? statusLabel(order.statusNext) : null;
 
   return (
-    <tr>
-      <td className="mono">
-        <Link href={`/orders/${order.id}`} className="linkish">
-          {order.orderNumber}
-        </Link>
-        {order.isUrgent ? (
-          <span className="workshop-urgent" title="Срочно">
-            Срочно
-          </span>
-        ) : null}
-      </td>
-      <td>{order.clientName ?? '—'}</td>
-      <td>
-        <span className={statusBadgeClass(order.status)}>{statusLabel(order.status)}</span>
-      </td>
-      <td className="mono">{formatMoney2(order.totalAmount)}</td>
-      <td>
-        <span className={sla.badgeClass}>{sla.label}</span>
-      </td>
-      <td>
-        <div className="workshop-actions">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            disabled={pending || !order.statusPrev}
-            aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
-            onClick={onPrev}
-          >
-            {prevLabel ? `← ${prevLabel}` : '←'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={pending || !order.statusNext}
-            aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
-            onClick={onNext}
-          >
-            {nextLabel ? `${nextLabel} →` : '→'}
-          </button>
-        </div>
-      </td>
-    </tr>
+    <Fragment>
+      <tr>
+        <td className="mono">
+          <Link href={`/orders/${order.id}`} className="linkish">
+            {order.orderNumber}
+          </Link>
+          {order.isUrgent ? (
+            <span className="workshop-urgent" title="Срочно">
+              Срочно
+            </span>
+          ) : null}
+        </td>
+        <td>{order.clientName ?? '—'}</td>
+        <td>
+          <span className={statusBadgeClass(order.status)}>{statusLabel(order.status)}</span>
+        </td>
+        <td className="mono">{formatMoney2(order.totalAmount)}</td>
+        <td>
+          <span className={sla.badgeClass}>{sla.label}</span>
+        </td>
+        <td>
+          <div className="workshop-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={pending || !order.statusPrev}
+              aria-label={prevLabel ? `Откатить в: ${prevLabel}` : 'Предыдущий статус недоступен'}
+              onClick={onPrev}
+            >
+              {prevLabel ? `← ${prevLabel}` : '←'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={pending || !order.statusNext}
+              aria-label={nextLabel ? `Перейти в: ${nextLabel}` : 'Следующий статус недоступен'}
+              onClick={onNext}
+            >
+              {nextLabel ? `${nextLabel} →` : '→'}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {order.items.length > 0 ? (
+        <tr>
+          <td colSpan={6} className="muted" style={{ fontSize: 13, paddingTop: 0 }}>
+            {order.items.map((it) => (
+              <div key={it.positionNumber}>
+                {it.positionNumber}. {it.name}, {it.quantity} шт, {shortTech(it.techParams)}, макет:{' '}
+                {it.hasLayout ? 'есть' : 'нет'}
+              </div>
+            ))}
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
   );
 }

@@ -15,6 +15,12 @@ export type OrderTelegramCard = {
   telegramMessageId: number | null;
   lastComment: string | null;
   isUrgent: boolean;
+  items: Array<{
+    positionNumber: number;
+    name: string;
+    quantity: number;
+    techParams: string | null;
+  }>;
 };
 
 export type TelegramCardFlags = {

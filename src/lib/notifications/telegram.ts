@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
 import { formatMoney2 } from '@/lib/money';
+import { shortTech } from '@/lib/orders/format-tech';
 import { statusLabel } from '@/lib/orders/status-labels';
 import { logNotification } from './log';
 import type { OrderTelegramCard, TelegramCardFlags } from './types';
@@ -23,6 +24,13 @@ export function buildOrderTelegramCard(
   ];
   if (order.isUrgent) {
     lines.push('☑️ Срочно');
+  }
+  for (const item of order.items) {
+    const tech = shortTech(item.techParams);
+    const itemName = item.name.trim() ? item.name : '—';
+    lines.push(
+      `${item.positionNumber}. ${escapeHtml(itemName)} × ${item.quantity} — ${escapeHtml(tech)}`,
+    );
   }
   lines.push(`Комментарий: ${escapeHtml(comment)}`);
   if (flags.problematicLayout) {
@@ -155,6 +163,18 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
   `;
   const lastComment = (commentRows[0] as { body: string } | undefined)?.body ?? null;
 
+  const itemRows = (await sql`
+    SELECT position_number, name, quantity, tech_params
+    FROM order_items
+    WHERE order_id = ${orderId}
+    ORDER BY position_number ASC
+  `) as Array<{
+    position_number: number;
+    name: string;
+    quantity: number;
+    tech_params: string | null;
+  }>;
+
   return {
     id: row.id,
     orderNumber: row.order_number,
@@ -164,6 +184,12 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
     telegramMessageId: row.telegram_message_id != null ? Number(row.telegram_message_id) : null,
     lastComment,
     isUrgent: row.is_urgent === true,
+    items: itemRows.map((i) => ({
+      positionNumber: Number(i.position_number),
+      name: i.name,
+      quantity: Number(i.quantity),
+      techParams: i.tech_params,
+    })),
     slaStartedAt: row.sla_started_at,
     slaStoppedAt: row.sla_stopped_at,
   };

@@ -43,6 +43,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     categoryId: '',
+    name: '',
     techParams: '',
     quantity: '1',
     unitPrice: '0',
@@ -50,6 +51,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
   const [adding, setAdding] = useState(false);
   const [addDraft, setAddDraft] = useState({
     categoryId: categories[0]?.id ?? '',
+    name: '',
     techParams: '',
     quantity: '1',
     unitPrice: '0',
@@ -59,6 +61,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
     setEditingId(item.id);
     setDraft({
       categoryId: item.categoryId,
+      name: item.name,
       techParams: item.techParams ?? '',
       quantity: String(item.quantity),
       unitPrice: formatMoney2(item.unitPrice),
@@ -87,6 +90,11 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
 
   async function saveEdit(item: OrderItem) {
     const quantity = Number.parseInt(draft.quantity, 10);
+    const name = draft.name.trim();
+    if (!name) {
+      onError('Укажите наименование');
+      return;
+    }
     if (!Number.isInteger(quantity) || quantity <= 0) {
       onError('Проверьте количество');
       return;
@@ -98,6 +106,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
 
     const body: Record<string, unknown> = {
       categoryId: draft.categoryId,
+      name,
       techParams: draft.techParams.trim() ? draft.techParams.trim() : null,
       quantity,
     };
@@ -151,6 +160,11 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
   async function addItem() {
     const quantity = Number.parseInt(addDraft.quantity, 10);
     const unitPrice = Number(addDraft.unitPrice);
+    const name = addDraft.name.trim();
+    if (!name) {
+      onError('Укажите наименование');
+      return;
+    }
     if (!addDraft.categoryId || !Number.isInteger(quantity) || quantity <= 0) {
       onError('Проверьте категорию и количество');
       return;
@@ -165,6 +179,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
     }
     const body: Record<string, unknown> = {
       categoryId: addDraft.categoryId,
+      name,
       techParams: addDraft.techParams.trim() ? addDraft.techParams.trim() : null,
       quantity,
       unitPrice,
@@ -180,6 +195,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
       setAdding(false);
       setAddDraft({
         categoryId: categories[0]?.id ?? '',
+        name: '',
         techParams: '',
         quantity: '1',
         unitPrice: '0',
@@ -220,6 +236,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
           <thead>
             <tr>
               <th>Категория</th>
+              <th>Наименование</th>
               <th>Тех. параметры</th>
               <th>Кол-во</th>
               <th>Цена</th>
@@ -247,6 +264,18 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
                       </select>
                     ) : (
                       (item.categoryName ?? '—')
+                    )}
+                  </td>
+                  <td>
+                    {isEdit ? (
+                      <input
+                        className="input"
+                        value={draft.name}
+                        onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                        required
+                      />
+                    ) : (
+                      item.name || '—'
                     )}
                   </td>
                   <td>
@@ -367,6 +396,15 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="field">
+              Наименование
+              <input
+                className="input"
+                value={addDraft.name}
+                onChange={(e) => setAddDraft((d) => ({ ...d, name: e.target.value }))}
+                required
+              />
             </label>
             <label className="field">
               Тех. параметры

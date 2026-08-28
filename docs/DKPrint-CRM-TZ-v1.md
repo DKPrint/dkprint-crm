@@ -1,13 +1,14 @@
 # DKPrint CRM — техническое задание v1 (полное)
 
-**Версия:** 1.4  
+**Версия:** 1.5  
 **Дата:** август 2026  
 **Статус:** согласовано, готово к передаче в разработку  
 **Базовый документ решений:** v1.2  
 **Изменения v1.1:** гигиена кода и качество; зафиксированы auth, SLA cron, Telegram, soft-delete password, timezone; выровнен дизайн-токен фона; Definition of Done.  
 **Изменения v1.2:** усиление §20 (модуль прав, изоляция заказов, money/Decimal, Next `"use server"` barrel, hotspots, R2/SLA ops, тесты, Cursor rules) по опыту Boxmart CRM.  
 **Изменения v1.3:** выравнивание несостыковок — R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = **Auth.js (NextAuth v5)** Credentials.  
-**Изменения v1.4:** Telegram — **живая карточка заказа** (одно сообщение на заказ, `editMessageText` при статусе и комментарии); поле `orders.telegram_message_id`; Web Push остаётся event-driven (§10.2).
+**Изменения v1.4:** Telegram — **живая карточка заказа** (одно сообщение на заказ, `editMessageText` при статусе и комментарии); поле `orders.telegram_message_id`; Web Push остаётся event-driven (§10.2).  
+**Изменения v1.5:** позиция заказа — поле `name` (наименование); TG-карточка показывает строки состава (sync **не** на item CRUD); очередь цеха — подстроки состава + «макет: есть/нет»; аудит на карточке/API — только admin|production, читаемые подписи.
 
 > **Этот файл — единственный документ для старта работы в новом репозитории.**  
 > При любом расхождении с другими заметками / чатами / старыми split-docs — **верен этот файл**.  
@@ -259,6 +260,7 @@ RETURNING last_sequence;
 | Поле | UI | Обязательно |
 |------|-----|:-----------:|
 | Категория | select из справочника (`is_active=true`) | ✅ |
+| Наименование | text (`name`) | ✅ |
 | Тех. параметры | textarea | — |
 | Количество | number > 0, целое | ✅ |
 | Цена за ед. | number ≥ 0, 2 знака | ✅ |
@@ -408,7 +410,8 @@ Photo center **не** видит справочник всех клиентов 
 |---------|----------|
 | Ввод цены | все создатели заказа (при создании / добавлении позиции по правам edit) |
 | Изменение после создания | admin или `can_edit_price` |
-| Аудит | каждая смена цены / qty / полей → `order_audit_logs` |
+| Аудит | каждая смена цены / qty / полей → `order_audit_logs` (no-op без изменений — без записи) |
+| Просмотр аудита | UI + `GET /orders/:id/audit-logs` — **только** admin и production; читаемые подписи действий |
 | Формула (канон) | `line_total = round(quantity × unit_price, 2)`; `total_amount = Σ line_total` |
 | Реализация | **только** `lib/money` + decimal-библиотека (напр. `decimal.js`); **запрещён** «голый» IEEE `number` для сумм |
 | БД | `NUMERIC(12,2)` для `unit_price`, `line_total`, `total_amount` |
@@ -523,6 +526,7 @@ GET /api/files/:fileId/download → { downloadUrl }  signed GET TTL 1–5 мин
   - любая смена статуса (next/prev/jump/**cancel**/→**delivered** и др.);
   - добавление комментария (кроме courier — §10.1);
   - просрочка SLA / проблемный макет — те же правила + пометка в теле карточки.
+  - **не** при add/patch/delete позиции и смене цены (карточка обновится на следующем статусе/комментарии).
 - **Fallback:** если `editMessageText` падает (нет `message_id`, сообщение удалено в TG) — новый `sendMessage`, обновить `telegram_message_id`.
 - **Формат** (`parse_mode: HTML`; экранировать `<`, `>`, `&` в пользовательском тексте):
 
@@ -530,11 +534,14 @@ GET /api/files/:fileId/download → { downloadUrl }  signed GET TTL 1–5 мин
 [DKPrint] DK-260824-3
 Клиент: … | Сумма: …
 <b>Статус: Принят</b>
+☑️ Срочно                ← только если is_urgent
+1. {name} × {qty} — {tech краткий или —}
 Комментарий: … (последний или «—»)
 Ссылка: https://{APP_URL}/orders/{id}
 ```
 
 - Строка **«Статус: …»** — всегда **жирным** (`<b>…</b>`); подпись статуса — из UI-лейблов CRM (`statusLabel`).
+- После статуса (и срочности) — строки состава заказа по `position_number` (name, qty, tech ≤ ~80 символов).
 - Ошибки Telegram **не** откатывают бизнес-операцию; писать в `notification_log` при наличии.
 - Webhook/polling входящих сообщений в v1 **не делаем**.
 - Канон реализации: `lib/notifications/telegram.ts` + `syncOrderTelegramCard(orderId)` после успешного commit в БД.
@@ -603,6 +610,7 @@ ELSE:
 - Компактная таблица (не планшетный kanban)
 - Статусы: `accepted`, `at_designer`, `in_production`, `ready_for_pickup`
 - Кнопки ←/→ в строке с именами целевых статусов
+- Под каждой строкой заказа — компактный состав: `N. {name}, {qty} шт, {tech или —}, макет: есть|нет` (`hasLayout` = confirmed файл блока `client` у позиции)
 - Polling **30–60 с** (или router refresh)
 - Доступ: production, designer, admin
 
@@ -644,7 +652,7 @@ ELSE:
 | Пользователи | CRUD, роль, `client_id` для photo_center, 5 флагов; деактивация `is_active` |
 | Категории | CRUD, `sort_order`, `is_active` (`skip_designer` в UI **disabled** до +1.5) |
 | SLA | CRUD `sla_goals` |
-| Аудит | просмотр status events / audit logs / cancel/delete (на карточке заказа достаточно) |
+| Аудит | просмотр status events / audit logs / cancel/delete (на карточке заказа достаточно); **audit logs UI/API — только admin и production**, читаемые подписи |
 
 Создание photo_center: см. §19.3.  
 Нельзя удалить последнего admin.  
@@ -799,6 +807,7 @@ id                UUID PRIMARY KEY DEFAULT gen_random_uuid()
 order_id          UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE
 position_number   INT NOT NULL
 category_id       UUID NOT NULL REFERENCES categories(id)
+name              TEXT NOT NULL DEFAULT ''
 tech_params       TEXT NULL
 quantity          INT NOT NULL CHECK (quantity > 0)
 unit_price        NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0)
@@ -980,7 +989,7 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 | Method | Path | Описание |
 |--------|------|----------|
 | GET | `/orders/:id/status-events` | |
-| GET | `/orders/:id/audit-logs` | |
+| GET | `/orders/:id/audit-logs` | только admin, production |
 
 ### 15.7 Clients
 
@@ -1098,7 +1107,7 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 5. Для курьера  
 6. Комментарии + ☑ Проблемный макет  
 7. История статусов  
-8. Аудит  
+8. Аудит (только admin, production)  
 9. Задачи по заказу  
 10. Действия: Отменить / Удалить / Создать задачу  
 
@@ -1527,7 +1536,8 @@ design-system/dkprint-crm/     # MASTER.md + styles.css
 | 1.2 | авг 2026 | Усиление §20: модуль прав + `assertOrderAccess`; money/Decimal; Next `"use server"` barrel; hotspots; R2/SLA ops; тесты admin jump/soft-delete; OPS/HANDOFF; Cursor rules; фазы 0–2 уточнены |
 | 1.3 | авг 2026 | Выравнивание: R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = Auth.js v5 Credentials (JWT session default) |
 | 1.4 | авг 2026 | Telegram: живая карточка заказа (`sendMessage` + `editMessageText`); `orders.telegram_message_id`; статус жирным; комментарии обновляют карточку; cancelled/delivered тоже edit; Web Push event-driven без изменений |
+| 1.5 | авг 2026 | `order_items.name`; TG строки состава (без sync на item CRUD); workshop состав + макет есть/нет; audit UI/API только admin\|production + читаемые подписи |
 
 ---
 
-*DKPrint CRM TZ v1.4 — август 2026. Изменение scope — только новой версией этого файла.*
+*DKPrint CRM TZ v1.5 — август 2026. Изменение scope — только новой версией этого файла.*

@@ -101,6 +101,7 @@ CREATE TABLE order_items (
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   position_number INT NOT NULL,
   category_id UUID NOT NULL REFERENCES categories(id),
+  name TEXT NOT NULL DEFAULT '',
   tech_params TEXT,
   quantity INT NOT NULL CHECK (quantity > 0),
   unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),

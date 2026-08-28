@@ -17,6 +17,20 @@ const sampleOrder: OrderTelegramCard = {
   telegramMessageId: 42,
   lastComment: 'Нужен макет',
   isUrgent: false,
+  items: [
+    {
+      positionNumber: 1,
+      name: 'Визитки',
+      quantity: 100,
+      techParams: 'матовая 300г',
+    },
+    {
+      positionNumber: 2,
+      name: 'Баннер & A1',
+      quantity: 2,
+      techParams: null,
+    },
+  ],
 };
 
 describe('escapeHtml', () => {
@@ -33,6 +47,12 @@ describe('buildOrderTelegramCard', () => {
     assert.match(text, /DK-260828-1/);
   });
 
+  it('includes item lines with escaped names', () => {
+    const text = buildOrderTelegramCard(sampleOrder);
+    assert.match(text, /1\. Визитки × 100 — матовая 300г/);
+    assert.match(text, /2\. Баннер &amp; A1 × 2 — —/);
+  });
+
   it('shows dash when no comment', () => {
     const text = buildOrderTelegramCard({ ...sampleOrder, lastComment: null });
     assert.match(text, /Комментарий: —/);
@@ -47,13 +67,15 @@ describe('buildOrderTelegramCard', () => {
     assert.match(text, /⚠️ Просрочка SLA/);
   });
 
-  it('adds urgent line after status when isUrgent', () => {
+  it('orders status → urgent → items → comment', () => {
     const text = buildOrderTelegramCard({ ...sampleOrder, isUrgent: true });
     assert.match(text, /☑️ Срочно/);
     const statusIdx = text.indexOf('Статус:');
     const urgentIdx = text.indexOf('☑️ Срочно');
+    const itemIdx = text.indexOf('1. Визитки');
     const commentIdx = text.indexOf('Комментарий:');
-    assert.ok(statusIdx >= 0 && urgentIdx > statusIdx && urgentIdx < commentIdx);
+    assert.ok(statusIdx >= 0 && urgentIdx > statusIdx);
+    assert.ok(itemIdx > urgentIdx && itemIdx < commentIdx);
   });
 
   it('omits urgent line when not urgent', () => {
