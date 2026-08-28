@@ -108,6 +108,49 @@ export async function updateTtn(
 }
 
 /**
+ * PATCH is_urgent — all roles with order access except courier.
+ * Soft-deleted / cancelled: forbidden.
+ */
+export async function updateUrgent(
+  user: SessionUser,
+  orderId: string,
+  isUrgent: boolean,
+): Promise<{ id: string; isUrgent: boolean }> {
+  if (user.role === 'courier') {
+    throw new Error('forbidden');
+  }
+
+  const rows = await sql`
+    SELECT id, client_id, status, deleted_at, is_urgent
+    FROM orders
+    WHERE id = ${orderId}
+    LIMIT 1
+  `;
+  const order = rows[0] as
+    | {
+        id: string;
+        client_id: string;
+        status: string;
+        deleted_at: string | null;
+        is_urgent: boolean;
+      }
+    | undefined;
+  if (!order) throw new Error('order_not_found');
+  if (order.deleted_at || order.status === 'cancelled') throw new Error('forbidden');
+
+  assertOrderAccess(user, order);
+
+  const updated = await sql`
+    UPDATE orders
+    SET is_urgent = ${isUrgent}, updated_at = now()
+    WHERE id = ${orderId}
+    RETURNING id, is_urgent
+  `;
+  const u = updated[0] as { id: string; is_urgent: boolean };
+  return { id: u.id, isUrgent: u.is_urgent === true };
+}
+
+/**
  * PATCH courier_note (TZ §10.5).
  * admin|production: any accessible non-cancelled/non-deleted order.
  * photo_center: own client + status=new + reason (audit).

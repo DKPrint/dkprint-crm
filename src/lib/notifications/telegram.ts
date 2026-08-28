@@ -20,8 +20,11 @@ export function buildOrderTelegramCard(
     `[DKPrint] ${escapeHtml(order.orderNumber)}`,
     `Клиент: ${escapeHtml(order.clientName)} | Сумма: ${escapeHtml(formatMoney2(order.totalAmount))}`,
     `<b>Статус: ${escapeHtml(statusLabel(order.status))}</b>`,
-    `Комментарий: ${escapeHtml(comment)}`,
   ];
+  if (order.isUrgent) {
+    lines.push('☑️ Срочно');
+  }
+  lines.push(`Комментарий: ${escapeHtml(comment)}`);
   if (flags.problematicLayout) {
     lines.push('⚠️ Проблемный макет');
   }
@@ -122,7 +125,7 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
   const rows = await sql`
     SELECT
       o.id, o.order_number, o.status, o.total_amount, o.telegram_message_id,
-      o.sla_started_at, o.sla_stopped_at,
+      o.sla_started_at, o.sla_stopped_at, o.is_urgent,
       c.name AS client_name
     FROM orders o
     JOIN clients c ON c.id = o.client_id
@@ -138,6 +141,7 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
         telegram_message_id: string | number | null;
         sla_started_at: string;
         sla_stopped_at: string | null;
+        is_urgent: boolean;
         client_name: string | null;
       }
     | undefined;
@@ -159,6 +163,7 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
     totalAmount: row.total_amount,
     telegramMessageId: row.telegram_message_id != null ? Number(row.telegram_message_id) : null,
     lastComment,
+    isUrgent: row.is_urgent === true,
     slaStartedAt: row.sla_started_at,
     slaStoppedAt: row.sla_stopped_at,
   };

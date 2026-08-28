@@ -14,6 +14,7 @@ export type OrderTelegramCard = {
   totalAmount: string;
   telegramMessageId: number | null;
   lastComment: string | null;
+  isUrgent: boolean;
 };
 
 export type TelegramCardFlags = {

@@ -32,6 +32,7 @@ type DbOrder = {
   source: string;
   courier_note: string | null;
   ttn_checked: boolean;
+  is_urgent: boolean;
   total_amount: string;
   sla_started_at: string;
   sla_stopped_at: string | null;
@@ -68,6 +69,7 @@ export function serializeOrder(o: DbOrder) {
     source: o.source,
     courierNote: o.courier_note,
     ttnChecked: o.ttn_checked === true,
+    isUrgent: o.is_urgent === true,
     totalAmount: toApiNumber(o.total_amount),
     slaStartedAt: o.sla_started_at,
     slaStoppedAt: o.sla_stopped_at,
@@ -104,6 +106,7 @@ export async function getOrderById(
       o.id, o.order_number, o.order_date, o.daily_sequence, o.client_id,
       c.name AS client_name, o.status,
       o.created_by_user_id, o.created_by_role, o.source, o.courier_note, o.ttn_checked,
+      o.is_urgent,
       o.total_amount, o.sla_started_at, o.sla_stopped_at, o.cancelled_at, o.cancel_reason,
       o.deleted_at, o.created_at, o.updated_at
     FROM orders o
@@ -181,6 +184,7 @@ export async function listOrders(user: SessionUser, filters: OrderListFilters) {
       o.id, o.order_number, o.order_date, o.daily_sequence, o.client_id,
       c.name AS client_name, o.status,
       o.created_by_user_id, o.created_by_role, o.source, o.courier_note, o.ttn_checked,
+      o.is_urgent,
       o.total_amount, o.sla_started_at, o.sla_stopped_at, o.cancelled_at, o.cancel_reason,
       o.deleted_at, o.created_at, o.updated_at
     FROM orders o

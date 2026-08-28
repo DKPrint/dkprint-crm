@@ -16,6 +16,7 @@ type DbWorkshopOrder = {
   sla_started_at: string;
   sla_stopped_at: string | null;
   created_at: string;
+  is_urgent: boolean;
 };
 
 export type WorkshopOrder = {
@@ -27,6 +28,7 @@ export type WorkshopOrder = {
   slaStartedAt: string;
   slaStoppedAt: string | null;
   createdAt: string;
+  isUrgent: boolean;
   statusPrev: OrderStatus | null;
   statusNext: OrderStatus | null;
 };
@@ -45,6 +47,7 @@ function serialize(
     slaStartedAt: row.sla_started_at,
     slaStoppedAt: row.sla_stopped_at,
     createdAt: row.created_at,
+    isUrgent: row.is_urgent === true,
     statusPrev: null as OrderStatus | null,
     statusNext: null as OrderStatus | null,
   };
@@ -66,7 +69,7 @@ export async function listWorkshopQueue(user: SessionUser): Promise<WorkshopOrde
   const rows = (await sql`
     SELECT
       o.id, o.order_number, c.name AS client_name, o.status,
-      o.total_amount, o.sla_started_at, o.sla_stopped_at, o.created_at
+      o.total_amount, o.sla_started_at, o.sla_stopped_at, o.created_at, o.is_urgent
     FROM orders o
     JOIN clients c ON c.id = o.client_id
     WHERE o.deleted_at IS NULL

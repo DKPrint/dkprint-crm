@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Role } from '@/lib/auth/permissions';
 import { formatMoney2 } from '@/lib/money';
+import { ORDERS_LIST_POLL_MS } from '@/lib/orders/constants';
 import { ORDER_STATUSES, statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
 
 type OrderRow = {
@@ -15,6 +16,7 @@ type OrderRow = {
   orderDate: string;
   totalAmount: number;
   ttnChecked: boolean;
+  isUrgent: boolean;
   deletedAt: string | null;
 };
 
@@ -39,9 +41,12 @@ export function OrdersList({ role }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ttnBusy, setTtnBusy] = useState<string | null>(null);
+  const [urgentBusy, setUrgentBusy] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const canCreate = CAN_CREATE.has(role);
   const canTtn = CAN_TTN.has(role);
+  const canEditUrgent = role !== 'courier';
   const isAdmin = role === 'admin';
 
   const replaceParams = useCallback(
@@ -65,27 +70,27 @@ export function OrdersList({ role }: Props) {
     return () => clearTimeout(t);
   }, [qDraft, q, replaceParams]);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    const params = new URLSearchParams();
-    if (q.trim()) params.set('q', q.trim());
-    for (const s of statuses) params.append('status', s);
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (isAdmin && includeDeleted) params.set('includeDeleted', 'true');
+  const loadOrders = useCallback(
+    async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
+      const silent = opts?.silent === true;
+      const params = new URLSearchParams();
+      if (q.trim()) params.set('q', q.trim());
+      for (const s of statuses) params.append('status', s);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (isAdmin && includeDeleted) params.set('includeDeleted', 'true');
 
-    void (async () => {
       try {
         const res = await fetch(`/api/orders?${params.toString()}`, {
           credentials: 'same-origin',
-          signal: ac.signal,
+          signal: opts?.signal,
         });
         const data = (await res.json()) as {
           orders?: OrderRow[];
           error?: string;
           message?: string;
         };
-        if (ac.signal.aborted) return;
+        if (opts?.signal?.aborted) return;
         if (!res.ok) {
           if (res.status === 401) {
             setError('Требуется вход');
@@ -94,23 +99,57 @@ export function OrdersList({ role }: Props) {
           } else {
             setError(data.message || 'Ошибка загрузки заказов');
           }
-          setOrders([]);
-          setLoading(false);
+          if (!silent) {
+            setOrders([]);
+            setLoading(false);
+          }
           return;
         }
         setError(null);
         setOrders(data.orders ?? []);
+        setLastRefresh(new Date());
         setLoading(false);
       } catch {
-        if (ac.signal.aborted) return;
+        if (opts?.signal?.aborted) return;
         setError('Ошибка загрузки заказов');
-        setOrders([]);
-        setLoading(false);
+        if (!silent) {
+          setOrders([]);
+          setLoading(false);
+        }
       }
-    })();
+    },
+    [q, statuses, from, to, includeDeleted, isAdmin],
+  );
 
-    return () => ac.abort();
-  }, [q, statuses, from, to, includeDeleted, isAdmin]);
+  useEffect(() => {
+    const ac = new AbortController();
+    const t = window.setTimeout(() => {
+      void loadOrders({ signal: ac.signal });
+    }, 0);
+    return () => {
+      window.clearTimeout(t);
+      ac.abort();
+    };
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void loadOrders({ silent: true });
+    }, ORDERS_LIST_POLL_MS);
+
+    function onVisibility() {
+      if (document.visibilityState === 'visible') {
+        void loadOrders({ silent: true });
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [loadOrders]);
 
   function toggleStatus(status: string) {
     replaceParams((p) => {
@@ -150,18 +189,71 @@ export function OrdersList({ role }: Props) {
     }
   }
 
+  async function onUrgentChange(orderId: string, isUrgent: boolean) {
+    const prev = orders.find((o) => o.id === orderId)?.isUrgent;
+    setUrgentBusy(orderId);
+    setError(null);
+    setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, isUrgent } : o)));
+    try {
+      const res = await fetch(`/api/orders/${orderId}/urgent`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isUrgent }),
+      });
+      const data = (await res.json()) as { message?: string };
+      if (!res.ok) {
+        setOrders((list) =>
+          list.map((o) => (o.id === orderId ? { ...o, isUrgent: prev === true } : o)),
+        );
+        if (res.status === 403) {
+          setError(data.message || 'Недостаточно прав');
+        } else {
+          setError(data.message || 'Не удалось обновить «Срочно»');
+        }
+        return;
+      }
+    } catch {
+      setOrders((list) =>
+        list.map((o) => (o.id === orderId ? { ...o, isUrgent: prev === true } : o)),
+      );
+      setError('Не удалось обновить «Срочно»');
+    } finally {
+      setUrgentBusy(null);
+    }
+  }
+
+  const colCount = 6 + (canTtn ? 1 : 0);
+
   return (
     <div>
       <div className="page-head">
         <div>
           <h1>Заказы</h1>
           <p className="lede">Список заказов с фильтрами по статусу и дате</p>
+          {lastRefresh ? (
+            <p className="muted" style={{ marginTop: 4 }}>
+              Обновлено{' '}
+              {lastRefresh.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              {' · '}
+              авто каждые {ORDERS_LIST_POLL_MS / 1000} с
+            </p>
+          ) : null}
         </div>
-        {canCreate ? (
-          <Link href="/orders/new" className="btn btn-cta">
-            Новый заказ
-          </Link>
-        ) : null}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void loadOrders({ silent: true })}
+          >
+            Обновить
+          </button>
+          {canCreate ? (
+            <Link href="/orders/new" className="btn btn-cta">
+              Новый заказ
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <div className="toolbar">
@@ -243,6 +335,7 @@ export function OrdersList({ role }: Props) {
         <table className="data">
           <thead>
             <tr>
+              <th>Срочно</th>
               <th>№</th>
               <th>Клиент</th>
               <th>Статус</th>
@@ -254,19 +347,34 @@ export function OrdersList({ role }: Props) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canTtn ? 6 : 5} className="muted">
+                <td colSpan={colCount} className="muted">
                   Загрузка…
                 </td>
               </tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={canTtn ? 6 : 5} className="muted">
+                <td colSpan={colCount} className="muted">
                   Заказов нет
                 </td>
               </tr>
             ) : (
               orders.map((o) => (
                 <tr key={o.id}>
+                  <td>
+                    <input
+                      className="check-urgent"
+                      type="checkbox"
+                      checked={o.isUrgent}
+                      disabled={
+                        !canEditUrgent ||
+                        urgentBusy === o.id ||
+                        o.deletedAt != null ||
+                        o.status === 'cancelled'
+                      }
+                      aria-label={`Срочно ${o.orderNumber}`}
+                      onChange={(e) => void onUrgentChange(o.id, e.target.checked)}
+                    />
+                  </td>
                   <td className="mono">
                     <Link href={`/orders/${o.id}`} className="linkish">
                       {o.orderNumber}

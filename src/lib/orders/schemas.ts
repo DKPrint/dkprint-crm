@@ -47,6 +47,10 @@ export const ttnSchema = z.object({
   ttnChecked: z.boolean(),
 });
 
+export const urgentSchema = z.object({
+  isUrgent: z.boolean(),
+});
+
 export const courierNoteSchema = z.object({
   courierNote: z.string().nullable(),
 });

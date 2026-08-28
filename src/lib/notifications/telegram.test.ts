@@ -16,6 +16,7 @@ const sampleOrder: OrderTelegramCard = {
   totalAmount: '1500.00',
   telegramMessageId: 42,
   lastComment: 'Нужен макет',
+  isUrgent: false,
 };
 
 describe('escapeHtml', () => {
@@ -44,6 +45,20 @@ describe('buildOrderTelegramCard', () => {
     });
     assert.match(text, /⚠️ Проблемный макет/);
     assert.match(text, /⚠️ Просрочка SLA/);
+  });
+
+  it('adds urgent line after status when isUrgent', () => {
+    const text = buildOrderTelegramCard({ ...sampleOrder, isUrgent: true });
+    assert.match(text, /☑️ Срочно/);
+    const statusIdx = text.indexOf('Статус:');
+    const urgentIdx = text.indexOf('☑️ Срочно');
+    const commentIdx = text.indexOf('Комментарий:');
+    assert.ok(statusIdx >= 0 && urgentIdx > statusIdx && urgentIdx < commentIdx);
+  });
+
+  it('omits urgent line when not urgent', () => {
+    const text = buildOrderTelegramCard(sampleOrder);
+    assert.equal(text.includes('☑️ Срочно'), false);
   });
 });
 
