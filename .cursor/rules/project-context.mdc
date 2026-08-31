@@ -5,7 +5,7 @@ globs: **/*
 # Project Context
 
 ## Overview
-DKPrint CRM — operational CRM for a print shop / photo-center network. Spec **v1.5**. Core orders, files (R2), workshop, comments, Telegram live cards, and audit gating are shipped; **tasks** and **reports** remain stubs.
+DKPrint CRM — operational CRM for a print shop / photo-center network. Spec **v1.6**. Core orders, files (R2), workshop, comments, Telegram live cards, and audit gating are shipped; **catalog (9b)**, **tasks**, **clients**, **reports**, **admin users** remain next/stubs.
 
 ## Tech Stack
 - TypeScript (strict), Next.js 16 App Router, React 19
@@ -40,7 +40,7 @@ design-system/dkprint-crm/
 - Unit tests colocated as `*.test.ts` under `src/lib/`
 
 ## Key Files
-- `docs/DKPrint-CRM-TZ-v1.md` — product/tech SoT (v1.5)
+- `docs/DKPrint-CRM-TZ-v1.md` — product/tech SoT (v1.6)
 - `OPS.md` / `HANDOFF.md` — ops + agent handoff
 - `src/lib/auth/permissions.ts`, `assertOrderAccess.ts`, `requireAuth.ts`
 - `src/lib/money/index.ts`

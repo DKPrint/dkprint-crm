@@ -2,7 +2,7 @@
 
 Операционная CRM для типографии и сети фотоцентров.
 
-**ТЗ:** [`docs/DKPrint-CRM-TZ-v1.md`](docs/DKPrint-CRM-TZ-v1.md) (v1.3)  
+**ТЗ:** [`docs/DKPrint-CRM-TZ-v1.md`](docs/DKPrint-CRM-TZ-v1.md) (v1.6)  
 **Дизайн:** [`design-system/dkprint-crm/`](design-system/dkprint-crm/)  
 **Auth:** Auth.js / `next-auth` `^5.0.0-beta.32` — Credentials + JWT session
 

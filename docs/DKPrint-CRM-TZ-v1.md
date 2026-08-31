@@ -1,6 +1,6 @@
 # DKPrint CRM — техническое задание v1 (полное)
 
-**Версия:** 1.5  
+**Версия:** 1.6  
 **Дата:** август 2026  
 **Статус:** согласовано, готово к передаче в разработку  
 **Базовый документ решений:** v1.2  
@@ -8,7 +8,8 @@
 **Изменения v1.2:** усиление §20 (модуль прав, изоляция заказов, money/Decimal, Next `"use server"` barrel, hotspots, R2/SLA ops, тесты, Cursor rules) по опыту Boxmart CRM.  
 **Изменения v1.3:** выравнивание несостыковок — R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = **Auth.js (NextAuth v5)** Credentials.  
 **Изменения v1.4:** Telegram — **живая карточка заказа** (одно сообщение на заказ, `editMessageText` при статусе и комментарии); поле `orders.telegram_message_id`; Web Push остаётся event-driven (§10.2).  
-**Изменения v1.5:** позиция заказа — поле `name` (наименование); TG-карточка показывает строки состава (sync **не** на item CRUD); очередь цеха — подстроки состава + «макет: есть/нет»; аудит на карточке/API — только admin|production, читаемые подписи.
+**Изменения v1.5:** позиция заказа — поле `name` (наименование); TG-карточка показывает строки состава (sync **не** на item CRUD); очередь цеха — подстроки состава + «макет: есть/нет»; аудит на карточке/API — только admin|production, читаемые подписи.  
+**Изменения v1.6:** **каталог продукции** (модуль в CRM, не отдельный сервис): иерархия категория→подкатегория→позиция, цены, import/export xlsx (1С), ☑ «заменить цены»; заказ — выбор из каталога или ☑ «Ручная позиция»; snapshot цены в `order_items`; схема BOM расходников под будущий склад; roadmap §21 с статусами Done/Next.
 
 > **Этот файл — единственный документ для старта работы в новом репозитории.**  
 > При любом расхождении с другими заметками / чатами / старыми split-docs — **верен этот файл**.  
@@ -83,17 +84,21 @@
 - Web Push: новый заказ, готов к выдаче, проблемный макет, SLA; Telegram — **живая карточка** заказа в группе (редактируется при статусе и комментарии)
 - Отчёты с деньгами; SLA default **72 ч**; остановка SLA при отмене / soft-delete / delivered
 - Чекбокс **«Проблемный макет»** в комментарии
+- **Каталог продукции** (§13.1): admin CRUD + import/export; создание заказа из каталога / ручная позиция
 - Базовая гигиена кода (§20): strict TS, lint, валидация границ, CI typecheck+lint; модуль прав + изоляция заказов; точечные unit (§20.5)
 
 ### 1.6 Не входит в v1
 
-- Внешний калькулятор, склад, онлайн-витрина, касса/фискализация
+- Внешний калькулятор, **списание со склада** (модуль Склад), онлайн-витрина, касса/фискализация
+- Отдельный микросервис каталога (v1 — **модуль в том же Next.js/Neon**, см. §13.1)
 - Нативное мобильное приложение
 - Поля оплачен / частично / долг
 - SMS клиентам
 - Optimistic locking / conflict UI при одновременном редактировании (v1: last-write-wins; см. §20.6)
 - Автоматический cleanup объектов R2 после soft-delete
 - Полный e2e/unit suite (минимум — точечные тесты на money/status/permissions, §20.5)
+
+**Закладывается в схему v1, UI списания — roadmap:** привязка расходников (BOM) к позициям каталога (§14.22).
 
 ---
 
@@ -124,11 +129,12 @@
 
 ### 2.2 Принципы архитектуры v1
 
-- Один репозиторий, без микросервисов.
+- Один репозиторий, без микросервисов (каталог — `lib/catalog` + admin/read API в том же приложении).
 - Плоская структура (`app/`, `lib/…`) — см. §20.2 / §20.3.
 - UI **прячет** недоступные действия; **сервер всегда проверяет** права.
 - Одна каноническая формула денег (§8) — не дублировать в UI и API по-разному.
 - Граф статусов в БД (`status_transitions`) — UI не хардкодит цепочку кроме отображения подписей.
+- Каталог с ценами — SoT в Neon; **не** хранить полный прайс в браузере как источник истины; цена в заказ — **snapshot** на сервере.
 
 ---
 
@@ -138,7 +144,7 @@
 
 | Код | UI | Назначение |
 |-----|-----|------------|
-| `admin` | Админ | Всё: пользователи, SLA, права, любые статусы, отчёты |
+| `admin` | Админ | Всё: пользователи, **каталог**, SLA, права, любые статусы, отчёты |
 | `photo_center` | Фотоцентр | Заказы где `clientId` = точка; создание; правка только «Новая» |
 | `production` | Производство | Все заказы; статусы, ТТН, отмена, soft-delete; правка только заказов `source=production` |
 | `designer` | Дизайнер | Все заказы; файлы дизайнера, статусы, комментарии; **без отмены** |
@@ -186,6 +192,8 @@ Roadmap: доп. флаги без смены модели БД (новые ко
 | Задачи | ✅ | ✅ | ✅ | ✅ | — |
 | Отчёты | ✅ | флаг | флаг | — | — |
 | SLA настройка | ✅ | — | — | — | — |
+| Каталог: CRUD / import / export / правка цен | ✅ | — | — | — | — |
+| Каталог: read (выбор в заказе) | ✅ | ✅ | — | ✅ | — |
 
 \* Курьер: статусы `ready_for_pickup`, `with_courier`, `delivered`.  
 \*\* Курьер: `ready_for_pickup ↔ with_courier → delivered`.  
@@ -257,17 +265,30 @@ RETURNING last_sequence;
 
 ### 4.4 Позиция заказа (`order_items`)
 
+Два режима строки (переключатель **☑ Ручная позиция**):
+
+| Режим | UI | Цена |
+|-------|-----|------|
+| Из каталога (по умолчанию) | Категория → подкатегория → позиция (cascading, данные с `/api/catalog/*`) + qty | Сервер подставляет `unit_price` из `catalog_products` (тело клиента с ценой **игнорировать**, кроме правил §8 edit) |
+| Ручная | Наименование + тех. параметры + цена вручную (как раньше) | Ввод создателем по правам |
+
 | Поле | UI | Обязательно |
 |------|-----|:-----------:|
-| Категория | select из справочника (`is_active=true`) | ✅ |
-| Наименование | text (`name`) | ✅ |
+| Каталог / ручная | checkbox `is_manual` | ✅ (default false) |
+| Категория каталога | select (если не manual) | ✅* |
+| Подкатегория | select (если не manual) | ✅* |
+| Позиция каталога | select → `catalog_product_id` | ✅* |
+| Наименование | text (`name`); из каталога копируется на сервере | ✅ |
 | Тех. параметры | textarea | — |
 | Количество | number > 0, целое | ✅ |
-| Цена за ед. | number ≥ 0, 2 знака | ✅ |
+| Цена за ед. | number ≥ 0, 2 знака (snapshot) | ✅ |
 | Сумма строки | `quantity × unit_price` | auto (сервер) |
 | Файлы точки | upload block `client` | — |
 
-Кнопка **«Добавить позицию»** — дублирует набор полей.
+\* Обязательно, если `is_manual = false`.
+
+Кнопка **«Добавить позицию»** — дублирует набор полей.  
+Legacy flat `categories` (§14.5) — для старых заказов / миграции; **новые** строки из каталога ссылаются на `catalog_products` (§13.1 / §14.19).
 
 ### 4.5 Правила редактирования полей
 
@@ -408,17 +429,19 @@ Photo center **не** видит справочник всех клиентов 
 
 | Правило | Описание |
 |---------|----------|
-| Ввод цены | все создатели заказа (при создании / добавлении позиции по правам edit) |
-| Изменение после создания | admin или `can_edit_price` |
-| Аудит | каждая смена цены / qty / полей → `order_audit_logs` (no-op без изменений — без записи) |
+| Каталог | SoT продажных цен — `catalog_products.unit_price` (admin); правка в админке / import |
+| Позиция из каталога | при create/add item сервер **читает** цену из БД → snapshot в `order_items.unit_price`; правки каталога **не** меняют уже созданные заказы |
+| Ручная позиция | ввод цены создателем (при создании / добавлении по правам edit) |
+| Изменение цены в заказе после создания | admin или `can_edit_price` |
+| Аудит заказа | каждая смена цены / qty / полей → `order_audit_logs` (no-op без изменений — без записи) |
 | Просмотр аудита | UI + `GET /orders/:id/audit-logs` — **только** admin и production; читаемые подписи действий |
 | Формула (канон) | `line_total = round(quantity × unit_price, 2)`; `total_amount = Σ line_total` |
 | Реализация | **только** `lib/money` + decimal-библиотека (напр. `decimal.js`); **запрещён** «голый» IEEE `number` для сумм |
 | БД | `NUMERIC(12,2)` для `unit_price`, `line_total`, `total_amount` |
-| API | суммы как **number**, всегда с 2 знаками на выходе (напр. `12.5` → `12.50` в сериализации / единообразный formatter); не string |
-| Где считать | **только сервер**; UI может показывать preview, но сохраняет ответ сервера |
+| API | суммы как **number**, всегда с 2 знаками на выходе; не string |
+| Где считать | **только сервер**; UI preview ок, сохраняет ответ сервера |
 | Оплата v1 | **нет** — только сумма для отчётов |
-| Валюта | не моделируется отдельно; отображение как число + «BYN» в UI (или без символа — единообразно) |
+| Валюта | не моделируется отдельно; отображение единообразно |
 
 Изменение `quantity` или `unit_price` всегда пересчитывает `line_total` и `orders.total_amount` в той же транзакции.
 
@@ -650,13 +673,55 @@ ELSE:
 | Раздел | Функции |
 |--------|---------|
 | Пользователи | CRUD, роль, `client_id` для photo_center, 5 флагов; деактивация `is_active` |
-| Категории | CRUD, `sort_order`, `is_active` (`skip_designer` в UI **disabled** до +1.5) |
+| **Каталог продукции** | дерево, позиции, цены, import/export xlsx, расходники (BOM UI минимальный) — §13.1 |
+| Категории (legacy) | flat `categories` (§14.5) — deprecate после миграции на каталог; `skip_designer` disabled до +1.5 |
 | SLA | CRUD `sla_goals` |
-| Аудит | просмотр status events / audit logs / cancel/delete (на карточке заказа достаточно); **audit logs UI/API — только admin и production**, читаемые подписи |
+| Аудит | status events / audit logs на карточке; **audit logs UI/API — только admin и production** |
 
 Создание photo_center: см. §19.3.  
 Нельзя удалить последнего admin.  
 Смена роли photo_center → другая: связь `clients.user_id` не ломать без явного действия.
+
+### 13.1 Каталог продукции (модуль в CRM)
+
+**Решение архитектуры v1.6:** каталог — **модуль** того же Next.js + Neon (`lib/catalog`, `/admin/catalog`, `/api/catalog`, `/api/admin/catalog`).  
+**Не** отдельный микросервис в v1 (меньше периметров auth, одна матрица прав, цена в заказ в одной транзакции).
+
+Вынос в сервис — только если появятся внешние потребители без CRM-сессии / отдельный продукт «Склад» с независимым релизом.
+
+#### Назначение
+
+- Импорт прайса из 1С (xlsx): категории, подкатегории, позиции, цены.
+- Редактирование цен и состава в админке; экспорт xlsx.
+- Создание заказа: cascading select + qty; цена с сервера; ☑ «Ручная позиция».
+- Заранее: BOM расходников к позиции (списание — модуль Склад, roadmap).
+
+#### Правила импорта
+
+| Правило | Поведение |
+|---------|-----------|
+| Ключ match | `external_code` / SKU из 1С (не «похожее имя») |
+| Совпадение | поля **не** заменяются |
+| Нет в БД | insert категории/подкатегории/позиции |
+| ☑ «Заменить цены» | у совпавших позиций обновить только `unit_price` из файла |
+| Парсинг | **только сервер**; лимит размера/MIME; без исполнения формул Excel |
+| Лог | `catalog_import_runs` (кто, флаги, counts) |
+
+#### Права и анти-утечки
+
+| Действие | Кто |
+|----------|-----|
+| CRUD / import / export / правка цен / BOM | **только admin** (все `/api/admin/catalog/*`) |
+| Read tree / search / product+price для формы заказа | admin, production, photo_center |
+| Designer, courier | нет catalog admin; read для заказа не нужен |
+| Read API | **не** отдаёт закупочные/себестоимость/внутренние поля склада, если появятся |
+| Create order item из каталога | клиент шлёт `catalogProductId` + `quantity`; сервер **перечитывает** цену; `unitPrice` из body для catalog-строк игнорировать (кроме явного edit по §8) |
+| Каталог в браузере | не SoT (запрещён localStorage полного прайса); допустим короткий in-memory cache формы |
+
+#### UI
+
+- `/admin/catalog` — дерево, позиции, цены, import (файл + ☑ заменить цены), export xlsx, stub/минимальный UI расходников.
+- Форма `/orders/new` и add item на карточке — §4.4.
 
 ---
 
@@ -672,7 +737,10 @@ users ── clients (photo_center 1:1)
 clients ── orders
 orders ── order_items ── files
 orders ── order_status_events, order_audit_logs, comments, tasks
-categories ── order_items
+categories ── order_items          -- legacy flat
+catalog_categories (tree) ── catalog_products ── order_items
+catalog_products ── catalog_product_consumables ── catalog_consumables
+catalog_import_runs
 status_transitions, sla_goals, order_daily_sequences (config)
 push_subscriptions, notification_log
 ```
@@ -718,7 +786,9 @@ notes       TEXT NULL
 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
-### 14.5 `categories`
+### 14.5 `categories` (legacy flat)
+
+Плоский справочник до каталога. После §14.18 — deprecate для **новых** заказов; сохранить для старых строк с `category_id`.
 
 ```sql
 id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -803,17 +873,20 @@ updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 ### 14.10 `order_items`
 
 ```sql
-id                UUID PRIMARY KEY DEFAULT gen_random_uuid()
-order_id          UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE
-position_number   INT NOT NULL
-category_id       UUID NOT NULL REFERENCES categories(id)
-name              TEXT NOT NULL DEFAULT ''
-tech_params       TEXT NULL
-quantity          INT NOT NULL CHECK (quantity > 0)
-unit_price        NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0)
-line_total        NUMERIC(12,2) NOT NULL
-created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+id                   UUID PRIMARY KEY DEFAULT gen_random_uuid()
+order_id             UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE
+position_number      INT NOT NULL
+category_id          UUID NULL REFERENCES categories(id)  -- legacy; nullable после миграции на каталог
+catalog_product_id   UUID NULL REFERENCES catalog_products(id)
+is_manual            BOOLEAN NOT NULL DEFAULT false
+name                 TEXT NOT NULL DEFAULT ''
+tech_params          TEXT NULL
+quantity             INT NOT NULL CHECK (quantity > 0)
+unit_price           NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0)  -- snapshot
+line_total           NUMERIC(12,2) NOT NULL
+created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 UNIQUE (order_id, position_number)
+-- CHECK: is_manual OR catalog_product_id IS NOT NULL (enforce в приложении / constraint)
 ```
 
 ### 14.11 `order_status_events`
@@ -910,6 +983,71 @@ payload         JSONB
 sent_push       BOOLEAN NOT NULL DEFAULT false
 sent_telegram   BOOLEAN NOT NULL DEFAULT false
 created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+### 14.18 `catalog_categories`
+
+```sql
+id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
+parent_id       UUID NULL REFERENCES catalog_categories(id)
+name            TEXT NOT NULL
+external_code   TEXT NULL  -- код из 1С; UNIQUE WHERE NOT NULL
+sort_order      INT NOT NULL DEFAULT 0
+is_active       BOOLEAN NOT NULL DEFAULT true
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+Дерево: корень = категория, дети = подкатегории (v1: глубина 2 достаточна; глубже — не запрещать).
+
+### 14.19 `catalog_products`
+
+```sql
+id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
+category_id     UUID NOT NULL REFERENCES catalog_categories(id)  -- лист дерева (подкатегория)
+name            TEXT NOT NULL
+external_code   TEXT NULL  -- SKU/код 1С; UNIQUE WHERE NOT NULL (ключ import match)
+unit_price      NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0)
+is_active       BOOLEAN NOT NULL DEFAULT true
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+### 14.20 `catalog_consumables`
+
+```sql
+id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
+name            TEXT NOT NULL
+external_code   TEXT NULL
+unit            TEXT NULL  -- ед. изм. (шт, м, …)
+is_active       BOOLEAN NOT NULL DEFAULT true
+created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+
+Справочник расходников; остатки/списание — модуль Склад (не v1).
+
+### 14.21 `catalog_product_consumables` (BOM)
+
+```sql
+id                UUID PRIMARY KEY DEFAULT gen_random_uuid()
+product_id        UUID NOT NULL REFERENCES catalog_products(id) ON DELETE CASCADE
+consumable_id     UUID NOT NULL REFERENCES catalog_consumables(id)
+qty_per_unit      NUMERIC(12,4) NOT NULL CHECK (qty_per_unit > 0)
+UNIQUE (product_id, consumable_id)
+```
+
+### 14.22 `catalog_import_runs`
+
+```sql
+id                UUID PRIMARY KEY DEFAULT gen_random_uuid()
+user_id           UUID NOT NULL REFERENCES users(id)
+filename          TEXT
+replace_prices    BOOLEAN NOT NULL DEFAULT false
+created_count     INT NOT NULL DEFAULT 0
+updated_price_count INT NOT NULL DEFAULT 0
+skipped_count     INT NOT NULL DEFAULT 0
+error_message     TEXT NULL
+created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
 ---
@@ -1036,8 +1174,23 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 | GET/PATCH | `/admin/users/:id` | + permission_overrides |
 | GET/POST/PATCH/DELETE | `/admin/categories` | |
 | GET/POST/PATCH/DELETE | `/admin/sla-goals` | |
+| GET/POST/PATCH | `/admin/catalog/categories` | дерево |
+| GET/POST/PATCH | `/admin/catalog/products` | + цена |
+| POST | `/admin/catalog/import` | multipart xlsx + `replacePrices` |
+| GET | `/admin/catalog/export` | xlsx |
+| GET/POST/PATCH/DELETE | `/admin/catalog/products/:id/consumables` | BOM |
 
-### 15.12 Push & Cron
+### 15.12 Catalog read (создатели заказов)
+
+| Method | Path | Описание |
+|--------|------|----------|
+| GET | `/catalog/categories` | дерево / children (`parentId`) |
+| GET | `/catalog/products` | `categoryId`, search, pagination |
+| GET | `/catalog/products/:id` | name + unitPrice (для формы) |
+
+Доступ: admin \| production \| photo_center. Без BOM / внутренних полей.
+
+### 15.13 Push & Cron
 
 | Method | Path | Описание |
 |--------|------|----------|
@@ -1045,7 +1198,7 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 | DELETE | `/push/subscribe` | |
 | GET/POST | `/cron/sla-overdue` | только `CRON_SECRET` |
 
-### 15.13 Server-side validation (обязательно)
+### 15.14 Server-side validation (обязательно)
 
 Никогда не упрощать и не выносить «только в UI»:
 
@@ -1057,7 +1210,9 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 - Reports: admin или `can_access_reports`
 - Price change: всегда audit log + пересчёт totals
 - Генерация номера: только через `order_daily_sequences` в транзакции создания заказа
-
+- Catalog admin: только `role=admin`
+- Catalog line: цена из `catalog_products`, не из непроверенного body
+- Manual line: `is_manual=true`, без `catalog_product_id`
 ---
 
 ## 16. Экраны и маршруты UI
@@ -1076,7 +1231,8 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 /clients, /clients/[id]
 /reports
 /admin/users, /admin/users/[id]
-/admin/categories
+/admin/catalog                  — каталог продукции (§13.1)
+/admin/categories               — legacy flat (deprecate)
 /admin/sla
 ```
 
@@ -1095,6 +1251,7 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 | Клиенты | ✅ | ✅ | ✅ | — | — |
 | Отчёты | ✅ | флаг | флаг | — | — |
 | Админка | ✅ | — | — | — | — |
+| Каталог (в админке) | ✅ | — | — | — | — |
 
 \* Список курьера уже отфильтрован сервером.
 
@@ -1391,21 +1548,45 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 
 ## 21. Порядок разработки
 
-| Фаза | Deliverable |
-|------|-------------|
-| **0** | Repo, TS/lint/prettier/CI, Neon, миграции, seed, `.env.example`, README (Auth.js v5), login Credentials, `lib/auth` + `lib/money` stubs + unit money/status stubs в `npm test`, `.cursor/rules` |
-| **1** | Orders CRUD, status engine, role filters через `assertOrderAccess` / `ordersVisibleWhere`, unit §20.5.1–5 |
-| **2** | R2 presign/confirm/download (+ idempotent confirm, key format) |
-| **3** | UI orders (list, create, detail, modals) |
-| **4** | Workshop queue |
-| **5** | Comments; notifications (Web Push + TG **живая карточка** §10.3) |
-| **6** | Tasks, clients |
-| **7** | SLA cron (`[sla]` logs) + admin SLA UI |
-| **8** | Reports + export |
-| **9** | Admin users/categories |
-| **10** | QA по §22; OPS/HANDOFF актуальны |
+### 21.1 Статус на момент v1.6
 
-**Ориентир полного v1:** 1 full-stack dev, **8–12 недель**.
+| Фаза | Deliverable | Статус |
+|------|-------------|--------|
+| **0** | Repo, Auth.js, Neon, миграции, seed, CI, `lib/money` / `lib/auth`, rules | **Done** |
+| **1** | Orders CRUD, status engine, `assertOrderAccess`, unit §20.5 | **Done** |
+| **2** | R2 presign/confirm/download | **Done** |
+| **3** | UI orders (+ name, urgent, polling, audit) | **Done** |
+| **4** | Workshop queue (+ состав / макет) | **Done** |
+| **5** | Comments; Web Push; Telegram live card | **Done** |
+| **5+** | OPS/HANDOFF черновики; cron SLA endpoint | **Done** (частично к фазам 7/10) |
+| **6** | Tasks + clients (API + UI) | **Next stub → делать** |
+| **7** | Admin SLA UI (+ довести cron/ops) | **Stub** (cron API есть) |
+| **8** | Reports + export | **Stub** |
+| **9** | Admin users (+ legacy categories UI) | **Stub** |
+| **9b** | **Каталог продукции** §13.1 (схема, import/export, форма заказа) | **Next (приоритет)** |
+| **10** | QA §22 полный; OPS/HANDOFF финал | **Частично** |
+
+### 21.2 Рекомендуемый порядок дальше
+
+1. **Фаза 9b — Каталог** (блокирует удобный прайс в заказах; админ-импорт 1С).  
+2. **Фаза 6 — Clients + Tasks** (операционка).  
+3. **Фаза 9 — Admin users** (создание точек без SQL/seed).  
+4. **Фаза 7 — Admin SLA UI**.  
+5. **Фаза 8 — Reports**.  
+6. **Фаза 10 — приёмка §22**.
+
+9b можно параллелить с 6, если два потока; API каталога не зависит от tasks.
+
+**Ориентир полного v1 (с каталогом):** +2–4 недели к прежней оценке.
+
+### 21.3 Фаза 9b — критерии готовности каталога
+
+- [ ] Миграции `catalog_*` + `order_items.catalog_product_id` / `is_manual`  
+- [ ] Admin: дерево, цены, import (match + ☑ replace prices), export xlsx  
+- [ ] Read API без утечки BOM/внутренних полей  
+- [ ] Форма заказа: cascading + ручная позиция; цена snapshot с сервера  
+- [ ] Unit: import match rules; create item игнорирует client unitPrice для catalog line  
+- [ ] BOM таблицы + минимальный admin UI или stub с API
 
 ---
 
@@ -1466,7 +1647,17 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 - [ ] Отчёты по флагу / admin  
 - [ ] 5 permission flags в admin UI  
 
-### 22.8 Гигиена
+### 22.8 Каталог (§13.1)
+
+- [ ] Admin: import xlsx создаёт категории/подкатегории/позиции; совпадения не затираются  
+- [ ] ☑ «Заменить цены» обновляет только цены совпавших  
+- [ ] Export xlsx  
+- [ ] Production/photo_center: cascading в заказе; цена с сервера (не SoT в браузере)  
+- [ ] ☑ Ручная позиция без catalog_product_id  
+- [ ] Non-admin: `/api/admin/catalog/*` → 403  
+- [ ] Designer/courier без catalog admin; BOM не в read API  
+
+### 22.9 Гигиена
 
 - [ ] strict TS + lint + prettier check + CI зелёные  
 - [ ] `.env.example` актуален; в README указано **Auth.js (NextAuth v5)** |  
@@ -1484,10 +1675,10 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 | Этап | Содержание |
 |------|------------|
 | +1 | Калькулятор (iframe/API в карточке) |
-| +1.5 | Пропуск `at_designer` (status graph + `categories.skip_designer`) |
-| +1.5 | Доп. permission flags в UI |
-| +2 | Склад |
-| Опц. | Multipart upload, R2 lifecycle cleanup, SMS, un-delete, optimistic locking, e2e suite |
+| +1.5 | Пропуск `at_designer` (status graph + skip_designer на каталоге/legacy) |
+| +1.5 | Доп. permission flags в UI (в т.ч. `can_manage_catalog` если понадобится делегирование) |
+| +2 | **Склад**: остатки, списание по BOM (`catalog_product_consumables` × qty позиции) при статусе производства/выдачи |
+| Опц. | Отдельный сервис каталога (если появятся внешние потребители); multipart upload; R2 cleanup; SMS; un-delete; optimistic locking; e2e |
 
 ---
 
@@ -1526,6 +1717,9 @@ design-system/dkprint-crm/     # MASTER.md + styles.css
 | ТТН | Чекбокс «товарно-транспортная накладная оформлена» |
 | Admin jump | Прямой переход статуса без соседнего шага |
 | Soft-delete | Скрытие заказа, не путать с «Отменён» |
+| Каталог | Прайс/номенклатура CRM (`catalog_*`); цена в заказ — snapshot |
+| Ручная позиция | `order_items.is_manual` — строка не из каталога |
+| BOM | Норма расходников на единицу каталожной позиции |
 
 ### C. История версий документа
 
@@ -1537,7 +1731,8 @@ design-system/dkprint-crm/     # MASTER.md + styles.css
 | 1.3 | авг 2026 | Выравнивание: R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = Auth.js v5 Credentials (JWT session default) |
 | 1.4 | авг 2026 | Telegram: живая карточка заказа (`sendMessage` + `editMessageText`); `orders.telegram_message_id`; статус жирным; комментарии обновляют карточку; cancelled/delivered тоже edit; Web Push event-driven без изменений |
 | 1.5 | авг 2026 | `order_items.name`; TG строки состава (без sync на item CRUD); workshop состав + макет есть/нет; audit UI/API только admin\|production + читаемые подписи |
+| 1.6 | авг 2026 | Каталог продукции как модуль CRM (§13.1): дерево, import/export 1С, replace prices, snapshot в заказе, ручная позиция, BOM под склад; roadmap §21 Done/Next + фаза 9b |
 
 ---
 
-*DKPrint CRM TZ v1.5 — август 2026. Изменение scope — только новой версией этого файла.*
+*DKPrint CRM TZ v1.6 — август 2026. Изменение scope — только новой версией этого файла.*
