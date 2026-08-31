@@ -32,6 +32,7 @@ export function navItemsFor(role: Role, flags: NavFlags): NavItem[] {
   }
 
   if (role === 'admin') {
+    items.push({ href: '/admin/catalog', label: 'Каталог' });
     items.push({ href: '/admin/users', label: 'Админка' });
   }
 

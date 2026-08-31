@@ -20,6 +20,7 @@ describe('navItemsFor', () => {
       '/tasks',
       '/clients',
       '/reports',
+      '/admin/catalog',
       '/admin/users',
     ]);
   });

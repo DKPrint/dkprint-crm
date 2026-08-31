@@ -666,6 +666,60 @@ table.data tbody tr.is-clickable {
   color: #dc2626;
 }
 
+.catalog-admin {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .catalog-admin {
+    grid-template-columns: 1fr;
+  }
+}
+
+.catalog-pane h2 {
+  margin: 0 0 var(--space-md);
+  font-family: var(--font-head), system-ui, sans-serif;
+  font-size: 1.1rem;
+  color: var(--color-text-strong);
+}
+
+.catalog-tree {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-background);
+}
+
+.catalog-tree-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.catalog-tree-item:hover {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.catalog-tree-item.is-selected {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.catalog-tree-item.is-inactive {
+  opacity: 0.65;
+}
+
 .status-toolbar {
   flex-wrap: wrap;
 }
