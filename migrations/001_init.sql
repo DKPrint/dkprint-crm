@@ -96,11 +96,83 @@ CREATE TABLE orders (
 CREATE INDEX orders_client_status_created_idx ON orders (client_id, status, created_at DESC);
 CREATE INDEX orders_status_created_alive_idx ON orders (status, created_at DESC) WHERE deleted_at IS NULL;
 
+CREATE TABLE catalog_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_id UUID NULL REFERENCES catalog_categories(id),
+  name TEXT NOT NULL,
+  external_code TEXT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX catalog_categories_external_code_uidx
+  ON catalog_categories (external_code)
+  WHERE external_code IS NOT NULL;
+
+CREATE INDEX catalog_categories_parent_sort_idx
+  ON catalog_categories (parent_id, sort_order);
+
+CREATE TABLE catalog_products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_id UUID NOT NULL REFERENCES catalog_categories(id),
+  name TEXT NOT NULL,
+  external_code TEXT NULL,
+  unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX catalog_products_external_code_uidx
+  ON catalog_products (external_code)
+  WHERE external_code IS NOT NULL;
+
+CREATE INDEX catalog_products_category_idx
+  ON catalog_products (category_id)
+  WHERE is_active = true;
+
+CREATE TABLE catalog_consumables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  external_code TEXT NULL,
+  unit TEXT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX catalog_consumables_external_code_uidx
+  ON catalog_consumables (external_code)
+  WHERE external_code IS NOT NULL;
+
+CREATE TABLE catalog_product_consumables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES catalog_products(id) ON DELETE CASCADE,
+  consumable_id UUID NOT NULL REFERENCES catalog_consumables(id),
+  qty_per_unit NUMERIC(12,4) NOT NULL CHECK (qty_per_unit > 0),
+  UNIQUE (product_id, consumable_id)
+);
+
+CREATE TABLE catalog_import_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  filename TEXT,
+  replace_prices BOOLEAN NOT NULL DEFAULT false,
+  created_count INT NOT NULL DEFAULT 0,
+  updated_price_count INT NOT NULL DEFAULT 0,
+  skipped_count INT NOT NULL DEFAULT 0,
+  error_message TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE order_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   position_number INT NOT NULL,
-  category_id UUID NOT NULL REFERENCES categories(id),
+  category_id UUID REFERENCES categories(id),
+  catalog_product_id UUID REFERENCES catalog_products(id),
+  is_manual BOOLEAN NOT NULL DEFAULT false,
   name TEXT NOT NULL DEFAULT '',
   tech_params TEXT,
   quantity INT NOT NULL CHECK (quantity > 0),
