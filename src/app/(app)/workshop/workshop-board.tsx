@@ -22,6 +22,7 @@ export function WorkshopBoard({ initialOrders }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(() => new Date());
+  const [expandedIds, setExpandedIds] = useState<Record<string, true>>({});
 
   const refresh = useCallback(async () => {
     try {
@@ -35,9 +36,18 @@ export function WorkshopBoard({ initialOrders }: Props) {
         setError(apiErrorMessage(data, 'Не удалось обновить очередь'));
         return;
       }
-      setOrders(data.orders ?? []);
+      const next = data.orders ?? [];
+      setOrders(next);
       setLastRefresh(new Date());
       setError(null);
+      setExpandedIds((prev) => {
+        const alive = new Set(next.map((o) => o.id));
+        const kept: Record<string, true> = {};
+        for (const id of Object.keys(prev)) {
+          if (alive.has(id)) kept[id] = true;
+        }
+        return kept;
+      });
     } catch {
       setError('Не удалось обновить очередь');
     }
@@ -49,6 +59,17 @@ export function WorkshopBoard({ initialOrders }: Props) {
     }, WORKSHOP_POLL_MS);
     return () => window.clearInterval(id);
   }, [refresh]);
+
+  function toggleExpanded(orderId: string) {
+    setExpandedIds((prev) => {
+      if (prev[orderId]) {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      }
+      return { ...prev, [orderId]: true };
+    });
+  }
 
   async function changeStatus(orderId: string, direction: 'prev' | 'next') {
     setError(null);
@@ -115,6 +136,8 @@ export function WorkshopBoard({ initialOrders }: Props) {
                   key={order.id}
                   order={order}
                   pending={pendingId === order.id}
+                  expanded={expandedIds[order.id] === true}
+                  onToggle={() => toggleExpanded(order.id)}
                   onPrev={() => void changeStatus(order.id, 'prev')}
                   onNext={() => void changeStatus(order.id, 'next')}
                 />
@@ -130,11 +153,13 @@ export function WorkshopBoard({ initialOrders }: Props) {
 type RowProps = {
   order: WorkshopOrder;
   pending: boolean;
+  expanded: boolean;
+  onToggle: () => void;
   onPrev: () => void;
   onNext: () => void;
 };
 
-function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
+function WorkshopRow({ order, pending, expanded, onToggle, onPrev, onNext }: RowProps) {
   const sla = computeSlaBadge({
     slaStartedAt: order.slaStartedAt,
     slaStoppedAt: order.slaStoppedAt,
@@ -145,16 +170,34 @@ function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
 
   return (
     <Fragment>
-      <tr>
+      <tr className={`workshop-row${expanded ? ' workshop-row-open' : ''}`} onClick={onToggle}>
         <td className="mono">
-          <Link href={`/orders/${order.id}`} className="linkish">
-            {order.orderNumber}
-          </Link>
-          {order.isUrgent ? (
-            <span className="workshop-urgent" title="Срочно">
-              Срочно
-            </span>
-          ) : null}
+          <span className="workshop-num-cell">
+            <button
+              type="button"
+              className="workshop-chevron"
+              aria-expanded={expanded}
+              aria-label={expanded ? 'Свернуть состав' : 'Развернуть состав'}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+            >
+              {expanded ? '▼' : '▶'}
+            </button>
+            <Link
+              href={`/orders/${order.id}`}
+              className="linkish"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {order.orderNumber}
+            </Link>
+            {order.isUrgent ? (
+              <span className="workshop-urgent" title="Срочно">
+                Срочно
+              </span>
+            ) : null}
+          </span>
         </td>
         <td>{order.clientName ?? '—'}</td>
         <td>
@@ -164,7 +207,7 @@ function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
         <td>
           <span className={sla.badgeClass}>{sla.label}</span>
         </td>
-        <td>
+        <td onClick={(e) => e.stopPropagation()}>
           <div className="workshop-actions">
             <button
               type="button"
@@ -187,15 +230,24 @@ function WorkshopRow({ order, pending, onPrev, onNext }: RowProps) {
           </div>
         </td>
       </tr>
-      {order.items.length > 0 ? (
-        <tr>
-          <td colSpan={6} className="muted" style={{ fontSize: 13, paddingTop: 0 }}>
-            {order.items.map((it) => (
-              <div key={it.positionNumber}>
-                {it.positionNumber}. {it.name}, {it.quantity} шт, {shortTech(it.techParams)}, макет:{' '}
-                {it.hasLayout ? 'есть' : 'нет'}
-              </div>
-            ))}
+      {expanded ? (
+        <tr className="workshop-detail">
+          <td colSpan={6}>
+            {order.items.length === 0 ? (
+              <p className="muted workshop-detail-empty">Позиций нет</p>
+            ) : (
+              <ul className="workshop-detail-list">
+                {order.items.map((it) => {
+                  const name = it.name.trim() ? it.name : '—';
+                  return (
+                    <li key={it.positionNumber}>
+                      {it.positionNumber}. {name}, {it.quantity} шт, {shortTech(it.techParams)},
+                      макет: {it.hasLayout ? 'есть' : 'нет'}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </td>
         </tr>
       ) : null}

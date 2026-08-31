@@ -610,7 +610,7 @@ ELSE:
 - Компактная таблица (не планшетный kanban)
 - Статусы: `accepted`, `at_designer`, `in_production`, `ready_for_pickup`
 - Кнопки ←/→ в строке с именами целевых статусов
-- Под каждой строкой заказа — компактный состав: `N. {name}, {qty} шт, {tech или —}, макет: есть|нет` (`hasLayout` = confirmed файл блока `client` у позиции)
+- Состав по **раскрытию** строки (кат); по умолчанию свёрнуто: `N. {name}, {qty} шт, {tech или —}, макет: есть|нет` (`hasLayout` = confirmed файл блока `client` у позиции)
 - Polling **30–60 с** (или router refresh)
 - Доступ: production, designer, admin
 

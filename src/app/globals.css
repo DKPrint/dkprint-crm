@@ -603,6 +603,59 @@ table.data tbody tr.is-clickable {
   align-items: center;
 }
 
+.workshop-row {
+  cursor: pointer;
+}
+
+.workshop-row-open {
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
+}
+
+.workshop-num-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workshop-chevron {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workshop-chevron:hover {
+  color: var(--color-text-strong);
+}
+
+.workshop-detail td {
+  padding-top: 0;
+  padding-bottom: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-background) 80%, var(--color-surface));
+}
+
+.workshop-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workshop-detail-empty {
+  margin: 0;
+  padding-left: 1.75rem;
+}
+
 .workshop-urgent {
   display: inline-block;
   margin-left: 8px;
