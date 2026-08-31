@@ -24,6 +24,8 @@ export async function POST(request: Request, ctx: Ctx) {
           id: item.id,
           positionNumber: item.position_number,
           categoryId: item.category_id,
+          catalogProductId: item.catalog_product_id,
+          isManual: item.is_manual === true,
           name: item.name,
           techParams: item.tech_params,
           quantity: Number(item.quantity),

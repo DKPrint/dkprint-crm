@@ -71,6 +71,8 @@ export async function POST(request: Request) {
           id: i.id,
           positionNumber: i.positionNumber,
           categoryId: i.categoryId,
+          catalogProductId: i.catalogProductId,
+          isManual: i.isManual,
           name: i.name,
           techParams: i.techParams,
           quantity: i.quantity,

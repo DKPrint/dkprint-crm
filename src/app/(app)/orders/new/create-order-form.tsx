@@ -3,64 +3,44 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Role } from '@/lib/auth/permissions';
-import { formatMoney2, lineTotal } from '@/lib/money';
+import {
+  CatalogOrderLineFields,
+  catalogLineToPayload,
+  emptyCatalogLine,
+  validateCatalogLine,
+  type CatalogOrderLineState,
+} from '@/components/catalog-order-line';
 
-type Category = { id: string; name: string };
 type Client = { id: string; name: string };
 
-type Line = {
-  key: string;
-  categoryId: string;
-  name: string;
-  quantity: string;
-  unitPrice: string;
-  techParams: string;
-};
+type Line = CatalogOrderLineState & { key: string };
 
 type Props = {
   role: Role;
-  categories: Category[];
   clients: Client[];
   fixedClientId: string | null;
 };
 
-function emptyLine(categories: Category[]): Line {
-  return {
-    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    categoryId: categories[0]?.id ?? '',
-    name: '',
-    quantity: '1',
-    unitPrice: '0',
-    techParams: '',
-  };
+function newLine(): Line {
+  return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ...emptyCatalogLine() };
 }
 
-function linePreview(qty: string, price: string): string {
-  const q = Number(qty);
-  if (!Number.isInteger(q) || q <= 0) return '—';
-  try {
-    return formatMoney2(lineTotal(q, price || 0));
-  } catch {
-    return '—';
-  }
-}
-
-export function CreateOrderForm({ role, categories, clients, fixedClientId }: Props) {
+export function CreateOrderForm({ role, clients, fixedClientId }: Props) {
   const router = useRouter();
   const needsClientSelect = role === 'admin' || role === 'production';
 
   const [clientId, setClientId] = useState(clients[0]?.id ?? '');
   const [courierNote, setCourierNote] = useState('');
-  const [items, setItems] = useState<Line[]>(() => [emptyLine(categories)]);
+  const [items, setItems] = useState<Line[]>(() => [newLine()]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  function updateItem(key: string, patch: Partial<Line>) {
-    setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
+  function updateItem(key: string, next: CatalogOrderLineState) {
+    setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...next } : it)));
   }
 
   function addItem() {
-    setItems((prev) => [...prev, emptyLine(categories)]);
+    setItems((prev) => [...prev, newLine()]);
   }
 
   function removeItem(key: string) {
@@ -71,10 +51,6 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
     e.preventDefault();
     setError(null);
 
-    if (categories.length === 0) {
-      setError('Нет активных категорий');
-      return;
-    }
     if (needsClientSelect && !clientId) {
       setError('Выберите клиента');
       return;
@@ -84,27 +60,14 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
       return;
     }
 
-    const payloadItems = items.map((it) => {
-      const quantity = Number.parseInt(it.quantity, 10);
-      const unitPrice = Number(it.unitPrice);
-      return {
-        categoryId: it.categoryId,
-        name: it.name.trim(),
-        quantity,
-        unitPrice,
-        techParams: it.techParams.trim() ? it.techParams.trim() : null,
-      };
-    });
-
-    for (const it of payloadItems) {
-      if (!it.categoryId || !it.name || !Number.isInteger(it.quantity) || it.quantity <= 0) {
-        setError('Проверьте наименование, количество и категорию в позициях');
+    const payloadItems: Record<string, unknown>[] = [];
+    for (const it of items) {
+      const err = validateCatalogLine(it);
+      if (err) {
+        setError(err);
         return;
       }
-      if (!Number.isFinite(it.unitPrice) || it.unitPrice < 0) {
-        setError('Цена должна быть числом ≥ 0');
-        return;
-      }
+      payloadItems.push(catalogLineToPayload(it));
     }
 
     const body: Record<string, unknown> = {
@@ -191,86 +154,23 @@ export function CreateOrderForm({ role, categories, clients, fixedClientId }: Pr
               <button
                 type="button"
                 className="btn btn-ghost"
-                disabled={items.length <= 1}
+                disabled={items.length <= 1 || pending}
                 onClick={() => removeItem(it.key)}
               >
                 Удалить
               </button>
             </div>
-            <label className="field">
-              Категория
-              <select
-                className="input"
-                value={it.categoryId}
-                onChange={(e) => updateItem(it.key, { categoryId: e.target.value })}
-                required
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Наименование
-              <input
-                className="input"
-                value={it.name}
-                onChange={(e) => updateItem(it.key, { name: e.target.value })}
-                required
-              />
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <label className="field">
-                Кол-во
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={it.quantity}
-                  onChange={(e) => updateItem(it.key, { quantity: e.target.value })}
-                  required
-                />
-              </label>
-              <label className="field">
-                Цена
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={it.unitPrice}
-                  onChange={(e) => updateItem(it.key, { unitPrice: e.target.value })}
-                  required
-                />
-              </label>
-              <label className="field">
-                Сумма
-                <input
-                  className="input mono"
-                  readOnly
-                  value={linePreview(it.quantity, it.unitPrice)}
-                  tabIndex={-1}
-                />
-              </label>
-            </div>
-            <label className="field">
-              Тех. параметры
-              <textarea
-                className="input"
-                value={it.techParams}
-                onChange={(e) => updateItem(it.key, { techParams: e.target.value })}
-                rows={2}
-              />
-            </label>
+            <CatalogOrderLineFields
+              value={it}
+              disabled={pending}
+              onChange={(next) => updateItem(it.key, next)}
+            />
           </div>
         ))}
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-secondary" onClick={addItem}>
+        <button type="button" className="btn btn-secondary" disabled={pending} onClick={addItem}>
           Добавить позицию
         </button>
         <button type="submit" className="btn btn-cta" disabled={pending}>

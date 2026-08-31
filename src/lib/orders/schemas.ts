@@ -1,15 +1,49 @@
 import { z } from 'zod';
 
-export const orderItemInputSchema = z.object({
-  categoryId: z.string().uuid(),
-  name: z.string().trim().min(1).max(200),
-  techParams: z.string().nullable().optional(),
-  quantity: z.number().int().positive(),
-  unitPrice: z.union([z.string(), z.number()]).refine((v) => {
-    const n = Number(v);
-    return Number.isFinite(n) && n >= 0;
-  }, 'unit_price_negative'),
-});
+const moneyInput = z.union([z.string(), z.number()]).refine((v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0;
+}, 'unit_price_negative');
+
+export const orderItemInputSchema = z
+  .object({
+    isManual: z.boolean().optional().default(false),
+    catalogProductId: z.string().uuid().optional(),
+    categoryId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    techParams: z.string().nullable().optional(),
+    quantity: z.number().int().positive(),
+    unitPrice: moneyInput.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.isManual) {
+      if (!data.name) {
+        ctx.addIssue({ code: 'custom', message: 'name required for manual line', path: ['name'] });
+      }
+      if (data.unitPrice === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'unitPrice required for manual line',
+          path: ['unitPrice'],
+        });
+      }
+      if (data.catalogProductId) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'catalogProductId not allowed for manual line',
+          path: ['catalogProductId'],
+        });
+      }
+      return;
+    }
+    if (!data.catalogProductId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'catalogProductId required for catalog line',
+        path: ['catalogProductId'],
+      });
+    }
+  });
 
 export const createOrderSchema = z.object({
   clientId: z.string().uuid().optional(),

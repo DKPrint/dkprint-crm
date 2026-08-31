@@ -2,16 +2,10 @@ import { formatMoney2, lineTotal, recalcOrderTotal } from '@/lib/money';
 import { sql } from '@/lib/db';
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
 import type { Role } from '@/lib/auth/permissions';
+import { loadCatalogProductSnapshot } from '@/lib/catalog/read';
 import { calendarDay, formatOrderNumber } from './order-number';
+import { resolveOrderItemLine } from './item-input';
 import type { CreateOrderInput } from './schemas';
-
-export type CreateOrderItemInput = {
-  categoryId: string;
-  name: string;
-  techParams?: string | null;
-  quantity: number;
-  unitPrice: string | number;
-};
 
 export type CreatedOrder = {
   id: string;
@@ -35,7 +29,9 @@ export type CreatedOrder = {
 export type CreatedItem = {
   id: string;
   positionNumber: number;
-  categoryId: string;
+  categoryId: string | null;
+  catalogProductId: string | null;
+  isManual: boolean;
   name: string;
   techParams: string | null;
   quantity: number;
@@ -44,6 +40,34 @@ export type CreatedItem = {
 };
 
 const CREATORS = new Set<Role>(['photo_center', 'production', 'admin']);
+
+async function prepareOrderItems(input: CreateOrderInput) {
+  const prepared = [];
+  for (let idx = 0; idx < input.items.length; idx += 1) {
+    const it = input.items[idx]!;
+    if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
+      throw new Error('validation');
+    }
+    const catalogProduct =
+      it.isManual || !it.catalogProductId
+        ? null
+        : await loadCatalogProductSnapshot(it.catalogProductId);
+    const resolved = resolveOrderItemLine(it, catalogProduct);
+    const lt = formatMoney2(lineTotal(resolved.quantity, resolved.unitPrice));
+    prepared.push({
+      positionNumber: idx + 1,
+      categoryId: resolved.categoryId,
+      catalogProductId: resolved.catalogProductId,
+      isManual: resolved.isManual,
+      name: resolved.name,
+      techParams: resolved.techParams,
+      quantity: resolved.quantity,
+      unitPrice: resolved.unitPrice,
+      lineTotal: lt,
+    });
+  }
+  return prepared;
+}
 
 /**
  * Create order + items atomically via CTE (sequence + order + items).
@@ -78,32 +102,7 @@ export async function createOrder(
     throw new Error('validation');
   }
 
-  const categoryIdsCheck = [...new Set(input.items.map((it) => it.categoryId))];
-  const activeCats = (await sql`
-    SELECT id FROM categories
-    WHERE id = ANY(${categoryIdsCheck}::uuid[]) AND is_active = true
-  `) as Array<{ id: string }>;
-  if (activeCats.length !== categoryIdsCheck.length) {
-    throw new Error('validation');
-  }
-
-  const prepared = input.items.map((it, idx) => {
-    if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
-      throw new Error('validation');
-    }
-    const unit = formatMoney2(it.unitPrice);
-    if (Number(unit) < 0) throw new Error('validation');
-    const lt = formatMoney2(lineTotal(it.quantity, unit));
-    return {
-      positionNumber: idx + 1,
-      categoryId: it.categoryId,
-      name: it.name,
-      techParams: it.techParams ?? null,
-      quantity: it.quantity,
-      unitPrice: unit,
-      lineTotal: lt,
-    };
-  });
+  const prepared = await prepareOrderItems(input);
 
   const total = formatMoney2(
     recalcOrderTotal(prepared.map((p) => ({ quantity: p.quantity, unitPrice: p.unitPrice }))),
@@ -114,13 +113,14 @@ export async function createOrder(
 
   const positions = prepared.map((p) => p.positionNumber);
   const categoryIds = prepared.map((p) => p.categoryId);
+  const catalogProductIds = prepared.map((p) => p.catalogProductId);
+  const isManualFlags = prepared.map((p) => p.isManual);
   const names = prepared.map((p) => p.name);
   const techParams = prepared.map((p) => p.techParams ?? '');
   const quantities = prepared.map((p) => p.quantity);
   const unitPrices = prepared.map((p) => p.unitPrice);
   const lineTotals = prepared.map((p) => p.lineTotal);
 
-  // Atomic: sequence upsert + order insert + items via unnest (Neon HTTP txn cannot chain results).
   const rows = await sql`
     WITH seq AS (
       INSERT INTO order_daily_sequences (order_date, last_sequence)
@@ -155,13 +155,15 @@ export async function createOrder(
     ),
     items AS (
       INSERT INTO order_items (
-        order_id, position_number, category_id, name, tech_params,
-        quantity, unit_price, line_total
+        order_id, position_number, category_id, catalog_product_id, is_manual,
+        name, tech_params, quantity, unit_price, line_total
       )
       SELECT
         ord.id,
         t.position_number,
         t.category_id,
+        t.catalog_product_id,
+        t.is_manual,
         t.name,
         NULLIF(t.tech_params, ''),
         t.quantity,
@@ -171,18 +173,20 @@ export async function createOrder(
       CROSS JOIN unnest(
         ${positions}::int[],
         ${categoryIds}::uuid[],
+        ${catalogProductIds}::uuid[],
+        ${isManualFlags}::boolean[],
         ${names}::text[],
         ${techParams}::text[],
         ${quantities}::int[],
         ${unitPrices}::numeric[],
         ${lineTotals}::numeric[]
       ) AS t(
-        position_number, category_id, name, tech_params,
+        position_number, category_id, catalog_product_id, is_manual, name, tech_params,
         quantity, unit_price, line_total
       )
       RETURNING
-        id, order_id, position_number, category_id, name, tech_params,
-        quantity, unit_price, line_total
+        id, order_id, position_number, category_id, catalog_product_id, is_manual,
+        name, tech_params, quantity, unit_price, line_total
     )
     SELECT
       (SELECT row_to_json(o) FROM ord o) AS order_row,
@@ -212,7 +216,9 @@ export async function createOrder(
         items_json: Array<{
           id: string;
           position_number: number;
-          category_id: string;
+          category_id: string | null;
+          catalog_product_id: string | null;
+          is_manual: boolean;
           name: string;
           tech_params: string | null;
           quantity: number;
@@ -227,7 +233,6 @@ export async function createOrder(
   }
 
   const o = row.order_row;
-  // Sanity: SQL concat matches formatOrderNumber rules
   const expected = formatOrderNumber(yymmdd, Number(o.daily_sequence));
   if (o.order_number !== expected) {
     console.warn('order_number mismatch', o.order_number, expected);
@@ -255,6 +260,8 @@ export async function createOrder(
       id: i.id,
       positionNumber: i.position_number,
       categoryId: i.category_id,
+      catalogProductId: i.catalog_product_id,
+      isManual: i.is_manual === true,
       name: i.name,
       techParams: i.tech_params,
       quantity: Number(i.quantity),

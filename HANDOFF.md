@@ -20,20 +20,20 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 - **9b.1 catalog schema** (`migrations/005_catalog.sql` + greenfield in `001_init.sql`): `catalog_categories` / `catalog_products` / BOM / `catalog_import_runs`; `order_items.catalog_product_id`, `is_manual`; `category_id` nullable
 - **9b.2 admin catalog** — `/admin/catalog` + `/api/admin/catalog/categories|products` (admin-only); tree + products + price edit; BOM not in product list
 - **9b.3 import/export** — `POST /api/admin/catalog/import` (multipart xlsx + replacePrices), `GET /api/admin/catalog/export`; match by `external_code`; `catalog_import_runs` log; unit tests for import rules
+- **9b.4 catalog read + order form** — `GET /api/catalog/*` (admin|production|photo_center); `/orders/new` + add item cascading; manual line; server price snapshot; unit tests ignore client unitPrice on catalog lines
 
 ## Next (priority)
 
-1. **Фаза 9b — Каталог (остаток)** (§13.1): public read API for order form, cascading + manual line, price snapshot on create/add
-2. **Фаза 6** — Clients + Tasks (pages are stubs today)
-3. **Фаза 9** — Admin users UI
-4. **Фаза 7** — Admin SLA UI (cron API already exists)
-5. **Фаза 8** — Reports + export
-6. **Фаза 10** — Full §22 acceptance
+1. **Фаза 6** — Clients + Tasks (pages are stubs today)
+2. **Фаза 9** — Admin users UI
+3. **Фаза 7** — Admin SLA UI (cron API already exists)
+4. **Фаза 8** — Reports + export
+5. **Фаза 10** — Full §22 acceptance
 
 ## Not done / stubs (do not claim complete)
 
 - `/tasks`, `/clients`, `/reports`, `/admin/users`, `/admin/categories`, `/admin/sla` — placeholder `<h1>` only
-- Product catalog UI/API (§13.1) — admin CRUD+price+import/export done; order-form read still open
+- Product catalog UI/API (§13.1) — admin CRUD+import/export + order-form catalog read done
 - Warehouse write-off — roadmap +2 (BOM tables exist)
 - Public calculator / site dual pricing — out of v1
 

@@ -3,18 +3,23 @@
 import { useState } from 'react';
 import { can, type PermissionFlags, type Role } from '@/lib/auth/permissions';
 import { formatMoney2, lineTotal } from '@/lib/money';
-import { apiErrorMessage, type Category, type OrderDetail, type OrderItem } from '../order-card';
+import {
+  CatalogOrderLineFields,
+  catalogLineToPayload,
+  emptyCatalogLine,
+  validateCatalogLine,
+  type CatalogOrderLineState,
+} from '@/components/catalog-order-line';
+import { apiErrorMessage, type OrderDetail, type OrderItem } from '../order-card';
 
 type Props = {
   order: OrderDetail;
   role: Role;
   flags: PermissionFlags;
-  categories: Category[];
   onError: (msg: string | null) => void;
   onSuccess: () => Promise<void>;
 };
 
-/** UI heuristics matching edit-policy (server still enforces). */
 function canEditItems(role: Role, order: OrderDetail): boolean {
   if (order.deletedAt || order.status === 'cancelled') return false;
   if (role === 'admin') return true;
@@ -33,7 +38,7 @@ function previewLine(qty: string, price: string): string {
   }
 }
 
-export function OrderItems({ order, role, flags, categories, onError, onSuccess }: Props) {
+export function OrderItems({ order, role, flags, onError, onSuccess }: Props) {
   const editable = canEditItems(role, order);
   const canPrice = editable && can(role, 'edit_price', flags);
   const needsReason = role === 'photo_center';
@@ -42,25 +47,17 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
   const [pending, setPending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
-    categoryId: '',
     name: '',
     techParams: '',
     quantity: '1',
     unitPrice: '0',
   });
   const [adding, setAdding] = useState(false);
-  const [addDraft, setAddDraft] = useState({
-    categoryId: categories[0]?.id ?? '',
-    name: '',
-    techParams: '',
-    quantity: '1',
-    unitPrice: '0',
-  });
+  const [addLine, setAddLine] = useState<CatalogOrderLineState>(() => emptyCatalogLine());
 
   function startEdit(item: OrderItem) {
     setEditingId(item.id);
     setDraft({
-      categoryId: item.categoryId,
       name: item.name,
       techParams: item.techParams ?? '',
       quantity: String(item.quantity),
@@ -90,11 +87,6 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
 
   async function saveEdit(item: OrderItem) {
     const quantity = Number.parseInt(draft.quantity, 10);
-    const name = draft.name.trim();
-    if (!name) {
-      onError('Укажите наименование');
-      return;
-    }
     if (!Number.isInteger(quantity) || quantity <= 0) {
       onError('Проверьте количество');
       return;
@@ -105,11 +97,17 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
     }
 
     const body: Record<string, unknown> = {
-      categoryId: draft.categoryId,
-      name,
       techParams: draft.techParams.trim() ? draft.techParams.trim() : null,
       quantity,
     };
+    if (item.isManual) {
+      const name = draft.name.trim();
+      if (!name) {
+        onError('Укажите наименование');
+        return;
+      }
+      body.name = name;
+    }
     if (needsReason) body.reason = reason.trim();
 
     const ok = await api(`/api/orders/${order.id}/items/${item.id}`, {
@@ -158,19 +156,9 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
   }
 
   async function addItem() {
-    const quantity = Number.parseInt(addDraft.quantity, 10);
-    const unitPrice = Number(addDraft.unitPrice);
-    const name = addDraft.name.trim();
-    if (!name) {
-      onError('Укажите наименование');
-      return;
-    }
-    if (!addDraft.categoryId || !Number.isInteger(quantity) || quantity <= 0) {
-      onError('Проверьте категорию и количество');
-      return;
-    }
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      onError('Цена должна быть числом ≥ 0');
+    const err = validateCatalogLine(addLine);
+    if (err) {
+      onError(err);
       return;
     }
     if (needsReason && !reason.trim()) {
@@ -178,11 +166,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
       return;
     }
     const body: Record<string, unknown> = {
-      categoryId: addDraft.categoryId,
-      name,
-      techParams: addDraft.techParams.trim() ? addDraft.techParams.trim() : null,
-      quantity,
-      unitPrice,
+      ...catalogLineToPayload(addLine),
     };
     if (needsReason) body.reason = reason.trim();
 
@@ -193,13 +177,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
     });
     if (ok) {
       setAdding(false);
-      setAddDraft({
-        categoryId: categories[0]?.id ?? '',
-        name: '',
-        techParams: '',
-        quantity: '1',
-        unitPrice: '0',
-      });
+      setAddLine(emptyCatalogLine());
     }
   }
 
@@ -211,7 +189,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={pending || categories.length === 0}
+            disabled={pending}
             onClick={() => setAdding(true)}
           >
             Добавить
@@ -249,25 +227,9 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
               const isEdit = editingId === item.id;
               return (
                 <tr key={item.id}>
+                  <td>{item.categoryName ?? '—'}</td>
                   <td>
-                    {isEdit ? (
-                      <select
-                        className="input"
-                        value={draft.categoryId}
-                        onChange={(e) => setDraft((d) => ({ ...d, categoryId: e.target.value }))}
-                      >
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      (item.categoryName ?? '—')
-                    )}
-                  </td>
-                  <td>
-                    {isEdit ? (
+                    {isEdit && item.isManual ? (
                       <input
                         className="input"
                         value={draft.name}
@@ -383,70 +345,7 @@ export function OrderItems({ order, role, flags, categories, onError, onSuccess 
         <div className="overlay" role="dialog" aria-modal="true">
           <div className="modal stack">
             <h2>Новая позиция</h2>
-            <label className="field">
-              Категория
-              <select
-                className="input"
-                value={addDraft.categoryId}
-                onChange={(e) => setAddDraft((d) => ({ ...d, categoryId: e.target.value }))}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Наименование
-              <input
-                className="input"
-                value={addDraft.name}
-                onChange={(e) => setAddDraft((d) => ({ ...d, name: e.target.value }))}
-                required
-              />
-            </label>
-            <label className="field">
-              Тех. параметры
-              <input
-                className="input"
-                value={addDraft.techParams}
-                onChange={(e) => setAddDraft((d) => ({ ...d, techParams: e.target.value }))}
-              />
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <label className="field">
-                Кол-во
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={addDraft.quantity}
-                  onChange={(e) => setAddDraft((d) => ({ ...d, quantity: e.target.value }))}
-                />
-              </label>
-              <label className="field">
-                Цена
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={addDraft.unitPrice}
-                  onChange={(e) => setAddDraft((d) => ({ ...d, unitPrice: e.target.value }))}
-                />
-              </label>
-              <label className="field">
-                Сумма
-                <input
-                  className="input mono"
-                  readOnly
-                  value={previewLine(addDraft.quantity, addDraft.unitPrice)}
-                  tabIndex={-1}
-                />
-              </label>
-            </div>
+            <CatalogOrderLineFields value={addLine} disabled={pending} onChange={setAddLine} />
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setAdding(false)}>
                 Отмена

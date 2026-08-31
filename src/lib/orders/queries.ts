@@ -47,7 +47,9 @@ type DbItem = {
   id: string;
   order_id: string;
   position_number: number;
-  category_id: string;
+  category_id: string | null;
+  catalog_product_id: string | null;
+  is_manual: boolean;
   category_name: string | null;
   name: string;
   tech_params: string | null;
@@ -88,6 +90,8 @@ export function serializeItem(i: DbItem) {
     orderId: i.order_id,
     positionNumber: i.position_number,
     categoryId: i.category_id,
+    catalogProductId: i.catalog_product_id,
+    isManual: i.is_manual === true,
     categoryName: i.category_name ?? null,
     name: i.name,
     techParams: i.tech_params,
@@ -124,10 +128,20 @@ export async function getOrderById(
   const items = (await sql`
     SELECT
       oi.id, oi.order_id, oi.position_number, oi.category_id,
-      cat.name AS category_name, oi.name, oi.tech_params,
-      oi.quantity, oi.unit_price, oi.line_total
+      oi.catalog_product_id, oi.is_manual,
+      CASE
+        WHEN cc.id IS NOT NULL THEN
+          CASE
+            WHEN cc_parent.id IS NOT NULL THEN cc_parent.name || ' / ' || cc.name
+            ELSE cc.name
+          END
+        ELSE legacy_cat.name
+      END AS category_name,
+      oi.name, oi.tech_params, oi.quantity, oi.unit_price, oi.line_total
     FROM order_items oi
-    LEFT JOIN categories cat ON cat.id = oi.category_id
+    LEFT JOIN catalog_categories cc ON cc.id = oi.category_id
+    LEFT JOIN catalog_categories cc_parent ON cc_parent.id = cc.parent_id
+    LEFT JOIN categories legacy_cat ON legacy_cat.id = oi.category_id AND cc.id IS NULL
     WHERE oi.order_id = ${orderId}
     ORDER BY oi.position_number ASC
   `) as DbItem[];

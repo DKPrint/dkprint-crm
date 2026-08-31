@@ -1,10 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { sql } from '@/lib/db';
 import { getOrderById } from '@/lib/orders/queries';
 import { OrderCard } from './order-card';
 
-type CategoryRow = { id: string; name: string };
 type Props = { params: Promise<{ id: string }> };
 
 export default async function OrderCardPage({ params }: Props) {
@@ -35,18 +33,5 @@ export default async function OrderCardPage({ params }: Props) {
     throw err;
   }
 
-  const categories = (await sql`
-    SELECT id, name FROM categories
-    WHERE is_active = true
-    ORDER BY sort_order, name
-  `) as CategoryRow[];
-
-  return (
-    <OrderCard
-      initialOrder={order}
-      role={session.user.role}
-      flags={session.flags}
-      categories={categories}
-    />
-  );
+  return <OrderCard initialOrder={order} role={session.user.role} flags={session.flags} />;
 }

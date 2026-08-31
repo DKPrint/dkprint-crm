@@ -2,7 +2,13 @@ import { formatMoney2, lineTotal } from '@/lib/money';
 import { sql } from '@/lib/db';
 import { assertOrderAccess, type SessionUser } from '@/lib/auth/assertOrderAccess';
 import { can, type PermissionFlags } from '@/lib/auth/permissions';
+import { loadCatalogProductSnapshot } from '@/lib/catalog/read';
 import { assertCanEditOrderFields } from './edit-policy';
+import { resolveOrderItemLine } from './item-input';
+import type { addItemSchema } from './schemas';
+import type { z } from 'zod';
+
+type AddItemInput = z.infer<typeof addItemSchema>;
 
 type OrderRow = {
   id: string;
@@ -16,7 +22,9 @@ type ItemRow = {
   id: string;
   order_id: string;
   position_number: number;
-  category_id: string;
+  category_id: string | null;
+  catalog_product_id: string | null;
+  is_manual: boolean;
   name: string;
   tech_params: string | null;
   quantity: number;
@@ -29,7 +37,7 @@ function itemSnapshot(item: {
   quantity: number;
   unitPrice?: string;
   lineTotal?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   techParams?: string | null;
 }) {
   return {
@@ -70,6 +78,8 @@ function toItemRow(row: ItemRow): ItemRow {
     order_id: row.order_id,
     position_number: row.position_number,
     category_id: row.category_id,
+    catalog_product_id: row.catalog_product_id,
+    is_manual: row.is_manual === true,
     name: row.name,
     tech_params: row.tech_params,
     quantity: row.quantity,
@@ -78,23 +88,24 @@ function toItemRow(row: ItemRow): ItemRow {
   };
 }
 
+async function resolveAddItemInput(input: AddItemInput) {
+  const catalogProduct =
+    input.isManual || !input.catalogProductId
+      ? null
+      : await loadCatalogProductSnapshot(input.catalogProductId);
+  return resolveOrderItemLine(input, catalogProduct);
+}
+
 export async function addOrderItem(
   user: SessionUser,
   orderId: string,
-  input: {
-    categoryId: string;
-    name: string;
-    techParams?: string | null;
-    quantity: number;
-    unitPrice: string | number;
-    reason?: string;
-  },
+  input: AddItemInput,
 ): Promise<{ item: ItemRow; totalAmount: string }> {
   const order = await loadOrderForEdit(orderId, user);
   assertCanEditOrderFields(user, order, { reason: input.reason });
 
-  const unit = formatMoney2(input.unitPrice);
-  const lt = formatMoney2(lineTotal(input.quantity, unit));
+  const resolved = await resolveAddItemInput(input);
+  const lt = formatMoney2(lineTotal(resolved.quantity, resolved.unitPrice));
 
   const posRows = await sql`
     SELECT coalesce(max(position_number), 0) + 1 AS next_pos
@@ -106,21 +117,23 @@ export async function addOrderItem(
   const rows = (await sql`
     WITH mutated AS (
       INSERT INTO order_items (
-        order_id, position_number, category_id, name, tech_params,
-        quantity, unit_price, line_total
+        order_id, position_number, category_id, catalog_product_id, is_manual,
+        name, tech_params, quantity, unit_price, line_total
       )
       VALUES (
         ${orderId},
         ${positionNumber},
-        ${input.categoryId}::uuid,
-        ${input.name},
-        ${input.techParams ?? null},
-        ${input.quantity},
-        ${unit}::numeric,
+        ${resolved.categoryId}::uuid,
+        ${resolved.catalogProductId}::uuid,
+        ${resolved.isManual},
+        ${resolved.name},
+        ${resolved.techParams},
+        ${resolved.quantity},
+        ${resolved.unitPrice}::numeric,
         ${lt}::numeric
       )
-      RETURNING id, order_id, position_number, category_id, name, tech_params,
-                quantity, unit_price, line_total
+      RETURNING id, order_id, position_number, category_id, catalog_product_id, is_manual,
+                name, tech_params, quantity, unit_price, line_total
     ),
     totals AS (
       SELECT order_id, coalesce(sum(line_total), 0) AS total
@@ -136,8 +149,8 @@ export async function addOrderItem(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
-      m.quantity, m.unit_price, m.line_total,
+      m.id, m.order_id, m.position_number, m.category_id, m.catalog_product_id, m.is_manual,
+      m.name, m.tech_params, m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
     CROSS JOIN ord
@@ -159,12 +172,12 @@ export async function addOrderItem(
       null,
       ${JSON.stringify(
         itemSnapshot({
-          name: input.name,
-          quantity: input.quantity,
-          unitPrice: unit,
+          name: resolved.name,
+          quantity: resolved.quantity,
+          unitPrice: resolved.unitPrice,
           lineTotal: lt,
-          categoryId: input.categoryId,
-          techParams: input.techParams ?? null,
+          categoryId: resolved.categoryId ?? undefined,
+          techParams: resolved.techParams,
         }),
       )},
       ${input.reason ?? null},
@@ -191,8 +204,8 @@ export async function patchOrderItem(
   assertCanEditOrderFields(user, order, { reason: input.reason });
 
   const itemRows = await sql`
-    SELECT id, order_id, position_number, category_id, name, tech_params,
-           quantity, unit_price, line_total
+    SELECT id, order_id, position_number, category_id, catalog_product_id, is_manual,
+           name, tech_params, quantity, unit_price, line_total
     FROM order_items
     WHERE id = ${itemId} AND order_id = ${orderId}
     LIMIT 1
@@ -233,8 +246,8 @@ export async function patchOrderItem(
         quantity = ${quantity},
         line_total = ${lt}::numeric
       WHERE id = ${itemId} AND order_id = ${orderId}
-      RETURNING id, order_id, position_number, category_id, name, tech_params,
-                quantity, unit_price, line_total
+      RETURNING id, order_id, position_number, category_id, catalog_product_id, is_manual,
+                name, tech_params, quantity, unit_price, line_total
     ),
     totals AS (
       SELECT order_id, coalesce(sum(line_total), 0) AS total
@@ -250,8 +263,8 @@ export async function patchOrderItem(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
-      m.quantity, m.unit_price, m.line_total,
+      m.id, m.order_id, m.position_number, m.category_id, m.catalog_product_id, m.is_manual,
+      m.name, m.tech_params, m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
     CROSS JOIN ord
@@ -384,8 +397,8 @@ export async function patchItemPrice(
   }
 
   const itemRows = await sql`
-    SELECT id, order_id, position_number, category_id, name, tech_params,
-           quantity, unit_price, line_total
+    SELECT id, order_id, position_number, category_id, catalog_product_id, is_manual,
+           name, tech_params, quantity, unit_price, line_total
     FROM order_items
     WHERE id = ${itemId} AND order_id = ${orderId}
     LIMIT 1
@@ -412,8 +425,8 @@ export async function patchItemPrice(
       UPDATE order_items
       SET unit_price = ${unit}::numeric, line_total = ${lt}::numeric
       WHERE id = ${itemId} AND order_id = ${orderId}
-      RETURNING id, order_id, position_number, category_id, name, tech_params,
-                quantity, unit_price, line_total
+      RETURNING id, order_id, position_number, category_id, catalog_product_id, is_manual,
+                name, tech_params, quantity, unit_price, line_total
     ),
     totals AS (
       SELECT order_id, coalesce(sum(line_total), 0) AS total
@@ -429,8 +442,8 @@ export async function patchItemPrice(
       RETURNING orders.total_amount
     )
     SELECT
-      m.id, m.order_id, m.position_number, m.category_id, m.name, m.tech_params,
-      m.quantity, m.unit_price, m.line_total,
+      m.id, m.order_id, m.position_number, m.category_id, m.catalog_product_id, m.is_manual,
+      m.name, m.tech_params, m.quantity, m.unit_price, m.line_total,
       ord.total_amount
     FROM mutated m
     CROSS JOIN ord

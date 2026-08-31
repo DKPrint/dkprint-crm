@@ -17,7 +17,9 @@ export type OrderItem = {
   id: string;
   orderId: string;
   positionNumber: number;
-  categoryId: string;
+  categoryId: string | null;
+  catalogProductId: string | null;
+  isManual: boolean;
   categoryName: string | null;
   name: string;
   techParams: string | null;
@@ -69,7 +71,6 @@ type Props = {
   initialOrder: OrderDetail;
   role: Role;
   flags: PermissionFlags;
-  categories: Category[];
 };
 
 export function apiErrorMessage(
@@ -79,7 +80,7 @@ export function apiErrorMessage(
   return data.message || data.error || fallback;
 }
 
-export function OrderCard({ initialOrder, role, flags, categories }: Props) {
+export function OrderCard({ initialOrder, role, flags }: Props) {
   const [order, setOrder] = useState(initialOrder);
   const [eventsKey, setEventsKey] = useState(0);
   const [auditKey, setAuditKey] = useState(0);
@@ -124,7 +125,6 @@ export function OrderCard({ initialOrder, role, flags, categories }: Props) {
         order={order}
         role={role}
         flags={flags}
-        categories={categories}
         onError={setError}
         onSuccess={afterMutation}
       />
