@@ -720,6 +720,34 @@ table.data tbody tr.is-clickable {
   opacity: 0.65;
 }
 
+.catalog-import-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.catalog-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.form-success {
+  color: #15803d;
+  margin: 0 0 var(--space-md);
+}
+
 .status-toolbar {
   flex-wrap: wrap;
 }

@@ -19,10 +19,11 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 - Cursor rules: DKPrint invariants + SoT / contracts / auth-webhooks + pre-push CI
 - **9b.1 catalog schema** (`migrations/005_catalog.sql` + greenfield in `001_init.sql`): `catalog_categories` / `catalog_products` / BOM / `catalog_import_runs`; `order_items.catalog_product_id`, `is_manual`; `category_id` nullable
 - **9b.2 admin catalog** — `/admin/catalog` + `/api/admin/catalog/categories|products` (admin-only); tree + products + price edit; BOM not in product list
+- **9b.3 import/export** — `POST /api/admin/catalog/import` (multipart xlsx + replacePrices), `GET /api/admin/catalog/export`; match by `external_code`; `catalog_import_runs` log; unit tests for import rules
 
 ## Next (priority)
 
-1. **Фаза 9b — Каталог (остаток)** (§13.1): import/export xlsx, public read API for order form, cascading + manual line, price snapshot on create/add
+1. **Фаза 9b — Каталог (остаток)** (§13.1): public read API for order form, cascading + manual line, price snapshot on create/add
 2. **Фаза 6** — Clients + Tasks (pages are stubs today)
 3. **Фаза 9** — Admin users UI
 4. **Фаза 7** — Admin SLA UI (cron API already exists)
@@ -32,7 +33,7 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 ## Not done / stubs (do not claim complete)
 
 - `/tasks`, `/clients`, `/reports`, `/admin/users`, `/admin/categories`, `/admin/sla` — placeholder `<h1>` only
-- Product catalog UI/API (§13.1) — admin CRUD+price done; import/export + order-form read still open
+- Product catalog UI/API (§13.1) — admin CRUD+price+import/export done; order-form read still open
 - Warehouse write-off — roadmap +2 (BOM tables exist)
 - Public calculator / site dual pricing — out of v1
 

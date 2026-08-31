@@ -19,7 +19,27 @@ Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.6).
 | Web Push subscriptions             | CRM + VAPID                                     | Event-driven; not TG                                                                                |
 | Categories / SLA defaults          | CRM admin                                       | Prefer deactivate over hard-delete                                                                  |
 | Product catalog / list prices      | CRM `catalog_*` (§13.1)                         | Admin import/export; order lines snapshot price; not browser SoT                                    |
-| Consumables BOM                    | `catalog_product_consumables`                   | Schema in v1; warehouse write-off = roadmap                                                         |
+
+### Catalog import/export xlsx (§13.1)
+
+Admin-only: `POST /api/admin/catalog/import`, `GET /api/admin/catalog/export`. Max **10 MB**; MIME xlsx; server parses values only (no formula execution). Match key = `external_code` (`product_code` in file). Log: `catalog_import_runs`.
+
+**Sheet 1, row 1 — headers** (English canonical; Russian aliases accepted, case-insensitive):
+
+| Column | Header             | Required       | DB field                                                                  |
+| ------ | ------------------ | -------------- | ------------------------------------------------------------------------- |
+| A      | `category_code`    | no             | `catalog_categories.external_code` (root)                                 |
+| B      | `category_name`    | yes            | root name on create                                                       |
+| C      | `subcategory_code` | no             | subcategory `external_code`                                               |
+| D      | `subcategory_name` | if subcategory | subcategory name on create                                                |
+| E      | `product_code`     | yes            | `catalog_products.external_code` (match key)                              |
+| F      | `product_name`     | yes            | name on create                                                            |
+| G      | `unit_price`       | yes            | `unit_price` on create; with ☑ replace prices — update only this on match |
+
+**Import rules:** existing `product_code` → skip fields; ☑ «Заменить цены» → update `unit_price` only. No code in DB → insert category/subcategory/product. Re-import without codes on categories may duplicate (use codes from 1С).
+
+Export uses the same column layout.
+| Consumables BOM | `catalog_product_consumables` | Schema in v1; warehouse write-off = roadmap |
 
 Do **not** treat client-submitted floats as money truth without going through `lib/money`.
 

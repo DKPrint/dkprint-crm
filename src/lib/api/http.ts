@@ -50,8 +50,18 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'photo_center_cannot_change_status':
     case 'invalid_status':
       return jsonError(400, code, err instanceof Error ? (err.cause as string) || code : code);
+    case 'empty_workbook':
+      return jsonError(400, code, 'Файл пустой или без данных');
+    case 'no_data_rows':
+      return jsonError(400, code, 'Нет строк данных в файле');
     default:
-      if (code.startsWith('invalid_') || code.includes('required')) {
+      if (
+        code.startsWith('invalid_') ||
+        code.startsWith('missing_') ||
+        code.includes('required') ||
+        code.startsWith('missing_product_') ||
+        code.startsWith('invalid_price_row_')
+      ) {
         return jsonError(400, 'validation', code);
       }
       console.error(err);

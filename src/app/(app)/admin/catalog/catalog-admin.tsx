@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney2 } from '@/lib/money';
 import type { CatalogCategoryNode } from '@/lib/catalog/categories';
 import type { CatalogProduct } from '@/lib/catalog/products';
@@ -21,6 +21,9 @@ export function CatalogAdmin() {
   const [prodName, setProdName] = useState('');
   const [prodPrice, setProdPrice] = useState('0');
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [replacePrices, setReplacePrices] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadTree = useCallback(async () => {
     const res = await fetch('/api/admin/catalog/categories', { credentials: 'same-origin' });
@@ -201,6 +204,72 @@ export function CatalogAdmin() {
     }
   }
 
+  async function runImport(file: File) {
+    setBusy(true);
+    setError(null);
+    setImportMessage(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('replacePrices', replacePrices ? 'true' : 'false');
+      const res = await fetch('/api/admin/catalog/import', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: form,
+      });
+      const data = (await res.json()) as {
+        import?: {
+          createdCount: number;
+          updatedPriceCount: number;
+          skippedCount: number;
+        };
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(apiError(data, 'Импорт не удался'));
+        return;
+      }
+      const stats = data.import;
+      if (stats) {
+        setImportMessage(
+          `Импорт: создано ${stats.createdCount}, цен обновлено ${stats.updatedPriceCount}, пропущено ${stats.skippedCount}`,
+        );
+      }
+      await loadTree();
+      if (selectedId) await loadProducts(selectedId);
+    } catch {
+      setError('Импорт не удался');
+    } finally {
+      setBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function runExport() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/catalog/export', { credentials: 'same-origin' });
+      if (!res.ok) {
+        const data = (await res.json()) as { message?: string; error?: string };
+        setError(apiError(data, 'Экспорт не удался'));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'catalog-export.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Экспорт не удался');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -208,7 +277,46 @@ export function CatalogAdmin() {
           <h1>Каталог продукции</h1>
           <p className="lede">Дерево категорий и позиции с ценами (только admin)</p>
         </div>
+        <div className="toolbar catalog-import-toolbar">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="visually-hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void runImport(file);
+            }}
+          />
+          <label className="muted catalog-check">
+            <input
+              type="checkbox"
+              checked={replacePrices}
+              onChange={(e) => setReplacePrices(e.target.checked)}
+              disabled={busy}
+            />
+            Заменить цены
+          </label>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Импорт xlsx
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() => void runExport()}
+          >
+            Экспорт xlsx
+          </button>
+        </div>
       </div>
+
+      {importMessage ? <p className="form-success">{importMessage}</p> : null}
 
       {error ? <p className="form-error">{error}</p> : null}
 
