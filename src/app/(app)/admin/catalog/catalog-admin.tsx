@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney2 } from '@/lib/money';
 import type { CatalogCategoryNode } from '@/lib/catalog/categories';
 import type { CatalogProduct } from '@/lib/catalog/products';
+import type { CatalogBomLine } from '@/lib/catalog/bom';
 
 function apiError(data: { message?: string; error?: string }, fallback: string): string {
   return data.message || data.error || fallback;
@@ -24,6 +25,13 @@ export function CatalogAdmin() {
   const [replacePrices, setReplacePrices] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [bomProductId, setBomProductId] = useState<string | null>(null);
+  const [bomLines, setBomLines] = useState<CatalogBomLine[]>([]);
+  const [bomName, setBomName] = useState('');
+  const [bomUnit, setBomUnit] = useState('');
+  const [bomQty, setBomQty] = useState('1');
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
 
   const loadTree = useCallback(async () => {
     const res = await fetch('/api/admin/catalog/categories', { credentials: 'same-origin' });
@@ -60,6 +68,26 @@ export function CatalogAdmin() {
     setPriceDrafts(drafts);
   }, []);
 
+  const loadBom = useCallback(async (productId: string) => {
+    const res = await fetch(`/api/admin/catalog/products/${productId}/consumables`, {
+      credentials: 'same-origin',
+    });
+    const data = (await res.json()) as {
+      consumables?: CatalogBomLine[];
+      message?: string;
+      error?: string;
+    };
+    if (!res.ok) {
+      setError(apiError(data, 'Не удалось загрузить BOM'));
+      return;
+    }
+    const list = data.consumables ?? [];
+    setBomLines(list);
+    const drafts: Record<string, string> = {};
+    for (const line of list) drafts[line.id] = String(line.qtyPerUnit);
+    setQtyDrafts(drafts);
+  }, []);
+
   useEffect(() => {
     const t = window.setTimeout(() => {
       void loadTree().catch(() => setError('Не удалось загрузить дерево'));
@@ -74,6 +102,20 @@ export function CatalogAdmin() {
     }, 0);
     return () => window.clearTimeout(t);
   }, [selectedId, loadProducts]);
+
+  useEffect(() => {
+    if (!bomProductId) {
+      const t = window.setTimeout(() => {
+        setBomLines([]);
+        setQtyDrafts({});
+      }, 0);
+      return () => window.clearTimeout(t);
+    }
+    const t = window.setTimeout(() => {
+      void loadBom(bomProductId).catch(() => setError('Не удалось загрузить BOM'));
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [bomProductId, loadBom]);
 
   async function addCategory() {
     const name = catName.trim();
@@ -204,6 +246,99 @@ export function CatalogAdmin() {
     }
   }
 
+  async function addBomLine() {
+    if (!bomProductId) return;
+    const name = bomName.trim();
+    if (!name) {
+      setError('Укажите название расходника');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/catalog/products/${bomProductId}/consumables`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          unit: bomUnit.trim() || null,
+          qtyPerUnit: bomQty,
+        }),
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      if (!res.ok) {
+        setError(apiError(data, 'Не удалось добавить расходник'));
+        return;
+      }
+      setBomName('');
+      setBomUnit('');
+      setBomQty('1');
+      await loadBom(bomProductId);
+    } catch {
+      setError('Не удалось добавить расходник');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveBomQty(lineId: string) {
+    if (!bomProductId) return;
+    const draft = qtyDrafts[lineId];
+    if (draft == null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/catalog/products/${bomProductId}/consumables/${lineId}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qtyPerUnit: draft }),
+      });
+      const data = (await res.json()) as {
+        line?: CatalogBomLine;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(apiError(data, 'Не удалось сохранить qty'));
+        return;
+      }
+      if (data.line) {
+        setBomLines((prev) => prev.map((l) => (l.id === lineId ? data.line! : l)));
+        setQtyDrafts((d) => ({ ...d, [lineId]: String(data.line!.qtyPerUnit) }));
+      }
+    } catch {
+      setError('Не удалось сохранить qty');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeBomLine(lineId: string) {
+    if (!bomProductId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/catalog/products/${bomProductId}/consumables/${lineId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      if (!res.ok) {
+        setError(apiError(data, 'Не удалось удалить строку BOM'));
+        return;
+      }
+      await loadBom(bomProductId);
+    } catch {
+      setError('Не удалось удалить строку BOM');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const bomProduct = products.find((p) => p.id === bomProductId) ?? null;
+
   async function runImport(file: File) {
     setBusy(true);
     setError(null);
@@ -333,7 +468,10 @@ export function CatalogAdmin() {
                   node={node}
                   depth={0}
                   selectedId={selectedId}
-                  onSelect={setSelectedId}
+                  onSelect={(id) => {
+                    setSelectedId(id);
+                    setBomProductId(null);
+                  }}
                 />
               ))
             )}
@@ -394,7 +532,7 @@ export function CatalogAdmin() {
                       </tr>
                     ) : (
                       products.map((p) => (
-                        <tr key={p.id}>
+                        <tr key={p.id} className={bomProductId === p.id ? 'is-selected-row' : ''}>
                           <td>{p.name}</td>
                           <td className="mono muted">{p.externalCode ?? '—'}</td>
                           <td>
@@ -417,14 +555,24 @@ export function CatalogAdmin() {
                             />
                           </td>
                           <td>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              disabled={busy}
-                              onClick={() => void savePrice(p.id)}
-                            >
-                              Сохранить цену
-                            </button>
+                            <div className="toolbar" style={{ margin: 0, gap: 4 }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                disabled={busy}
+                                onClick={() => void savePrice(p.id)}
+                              >
+                                Сохранить цену
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                disabled={busy}
+                                onClick={() => setBomProductId(p.id)}
+                              >
+                                BOM
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -456,6 +604,114 @@ export function CatalogAdmin() {
                   Добавить позицию
                 </button>
               </div>
+
+              {bomProductId ? (
+                <div className="catalog-bom" style={{ marginTop: 20 }}>
+                  <h3 style={{ margin: '0 0 8px' }}>
+                    BOM: {bomProduct?.name ?? bomProductId}
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => setBomProductId(null)}
+                    >
+                      Закрыть
+                    </button>
+                  </h3>
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    Расходники на единицу позиции (складское списание — позже)
+                  </p>
+                  <div className="table-wrap">
+                    <table className="data">
+                      <thead>
+                        <tr>
+                          <th>Расходник</th>
+                          <th>Ед.</th>
+                          <th>qty / ед.</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bomLines.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="muted">
+                              Нет расходников
+                            </td>
+                          </tr>
+                        ) : (
+                          bomLines.map((line) => (
+                            <tr key={line.id}>
+                              <td>{line.name}</td>
+                              <td className="muted">{line.unit ?? '—'}</td>
+                              <td>
+                                <input
+                                  className="input mono"
+                                  style={{ width: 100 }}
+                                  value={qtyDrafts[line.id] ?? String(line.qtyPerUnit)}
+                                  onChange={(e) =>
+                                    setQtyDrafts((d) => ({ ...d, [line.id]: e.target.value }))
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <div className="toolbar" style={{ margin: 0, gap: 4 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    disabled={busy}
+                                    onClick={() => void saveBomQty(line.id)}
+                                  >
+                                    Сохранить
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger btn-sm"
+                                    disabled={busy}
+                                    onClick={() => void removeBomLine(line.id)}
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="toolbar" style={{ marginTop: 12 }}>
+                    <input
+                      className="input grow"
+                      placeholder="Название расходника"
+                      value={bomName}
+                      onChange={(e) => setBomName(e.target.value)}
+                    />
+                    <input
+                      className="input"
+                      style={{ width: 80 }}
+                      placeholder="Ед."
+                      value={bomUnit}
+                      onChange={(e) => setBomUnit(e.target.value)}
+                    />
+                    <input
+                      className="input mono"
+                      style={{ width: 100 }}
+                      placeholder="qty"
+                      value={bomQty}
+                      onChange={(e) => setBomQty(e.target.value)}
+                      aria-label="qty_per_unit"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => void addBomLine()}
+                    >
+                      Добавить
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </section>

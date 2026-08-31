@@ -25,6 +25,8 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'file_not_found':
     case 'category_not_found':
     case 'product_not_found':
+    case 'consumable_not_found':
+    case 'bom_line_not_found':
       return jsonError(404, code, 'Не найдено');
     case 'file_not_ready':
       return jsonError(400, code, 'Файл ещё не загружен');

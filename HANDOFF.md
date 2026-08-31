@@ -21,6 +21,7 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 - **9b.2 admin catalog** — `/admin/catalog` + `/api/admin/catalog/categories|products` (admin-only); tree + products + price edit; BOM not in product list
 - **9b.3 import/export** — `POST /api/admin/catalog/import` (multipart xlsx + replacePrices), `GET /api/admin/catalog/export`; match by `external_code`; `catalog_import_runs` log; unit tests for import rules
 - **9b.4 catalog read + order form** — `GET /api/catalog/*` (admin|production|photo_center); `/orders/new` + add item cascading; manual line; server price snapshot; unit tests ignore client unitPrice on catalog lines
+- **9b.5 BOM admin** — `GET/POST/PATCH/DELETE /api/admin/catalog/products/:id/consumables`; minimal BOM UI on `/admin/catalog`; no warehouse write-off; `/api/catalog/*` still BOM-free
 
 ## Next (priority)
 

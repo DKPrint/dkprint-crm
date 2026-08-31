@@ -35,3 +35,31 @@ export const patchProductSchema = z.object({
   externalCode: z.string().trim().min(1).max(100).nullable().optional(),
   isActive: z.boolean().optional(),
 });
+
+/** BOM qty_per_unit — not money; must be > 0 (TZ §14.21). */
+const qtyPerUnitInput = z.union([z.string(), z.number()]).refine((v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+}, 'qty_per_unit_invalid');
+
+export const createBomLineSchema = z
+  .object({
+    consumableId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(200).optional(),
+    unit: z.string().trim().min(1).max(50).nullable().optional(),
+    externalCode: z.string().trim().min(1).max(100).nullable().optional(),
+    qtyPerUnit: qtyPerUnitInput,
+  })
+  .superRefine((data, ctx) => {
+    if (!data.consumableId && !data.name) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'consumableId or name required',
+        path: ['name'],
+      });
+    }
+  });
+
+export const patchBomLineSchema = z.object({
+  qtyPerUnit: qtyPerUnitInput,
+});
