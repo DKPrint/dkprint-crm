@@ -1,0 +1,14 @@
+---
+description: Before any git push, run the full CI check suite locally
+alwaysApply: true
+---
+
+# Pre-push checks
+
+Before `git push` (including commit-and-push), always run and wait for success:
+
+```bash
+npm run typecheck && npm run lint && npm run format:check && npm test
+```
+
+If any step fails: fix, re-run the suite, then push. Do not push with known CI failures.

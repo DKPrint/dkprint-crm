@@ -10,7 +10,8 @@ alwaysApply: true
 - Деньги — только `lib/money` + decimal.js; БД NUMERIC(12,2); API number с 2 знаками. Не IEEE float для сумм.
 - Статусы — только через `status_transitions` (+ admin jump). Designer никогда не cancel/soft-delete.
 - R2 key: `dkprint/{R2_ENV}/orders/{orderNumber}/items/...` (orderNumber, не UUID).
-- Auth: Auth.js v5 Credentials + JWT session; на каждом protected request проверять user в БД (`is_active`, role).
+- Auth: Auth.js v5 Credentials + JWT session; на каждом protected request проверять user в БД (`is_active`, role). Public signup — выключен (см. `07-auth-webhooks-access.mdc`).
 - `"use server"`: не делать barrel `export {…} from …` внутри файла с `"use server"`.
 - Плоская структура `app/` + `lib/`; без лишних repository/CQRS слоёв.
 - Источник истины: `docs/DKPrint-CRM-TZ-v1.md`.
+- Платформенные правила (SoT / контракты / webhooks): `05-source-of-truth`, `06-integration-contracts`, `07-auth-webhooks-access`.

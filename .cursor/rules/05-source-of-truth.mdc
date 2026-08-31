@@ -1,0 +1,22 @@
+---
+description: Universal SoT — one owner per data type; never dual canons for price/status/catalog
+alwaysApply: true
+---
+
+# Source of truth (multi-app / CRM / site / calculator)
+
+From cross-platform audits (e.g. BOXMART): most breakage is two apps owning the same fact.
+
+## Rules
+
+- For each data type name **one** SoT owner (users, clients, leads/orders, prices, formulas, catalog, stock, docs, audit). Put the map in `OPS.md` / `HANDOFF.md`.
+- Do **not** accept from the client without server recompute/check: `finalPrice`, `unitPrice`, `discount`, `margin`, `cost`, `role`, `userId`, `ownerId`, `organisationId`, `status`, `isAdmin`.
+- If pricing/formulas exist in two places (server + SPA + local fallback): mark **canon vs fallback**; changing canon requires updating fallback in the same release train — never silent drift.
+- Prefer **archive / deactivate** over hard-delete for catalog, sheet formats, card grades, price books.
+- Persist **rule/version snapshots** on historical orders/quotes; do not rewrite past money by publishing new tariffs.
+- Stock SoT ≠ storefront availability unless code explicitly joins them — do not invent that link.
+
+```text
+❌ Site submits client-computed price → CRM stores as truth
+✅ Boundary recalculates or verifies vs pricing SoT, then persists
+```

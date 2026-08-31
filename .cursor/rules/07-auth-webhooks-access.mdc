@@ -1,0 +1,29 @@
+---
+description: Universal auth, webhooks, IDOR, secrets — lessons from open signup / chat ACL / price trust
+alwaysApply: true
+---
+
+# Auth, webhooks, object access
+
+## Identity
+
+- Public **sign-up** off by default (`disableSignUp` / equivalent). Users created by admin only.
+- Default role = **least privilege**, never `manager`/`admin` for self-serve signup.
+- Separate apps = separate IdPs unless SSO is designed — do not assume shared `userId`/roles.
+- UI hiding buttons ≠ authorization. Every mutation/read by id checks session + role + **object access** (no IDOR by swapping id).
+
+## Ingest / webhooks
+
+- Verify shared secret (prefer `timingSafeEqual`).
+- Also enforce **resource ACL** (e.g. Telegram `chat.id` allowlist, tenant id) — secret alone is not enough if the bot is reachable from other chats.
+- Retries must be idempotent; do not create duplicate orders on Telegram/webhook redelivery.
+
+## Secrets & audit
+
+- Never put API keys / ingest secrets in `NEXT_PUBLIC_*`, client bundles, or committed real values.
+- Audit (who/when/before/after) for: role changes, prices, discounts, status, warehouse write-offs, exports.
+
+```text
+❌ Webhook: if (secret OK) createOrder(payload)
+✅ if (secret OK && chatId === ALLOWED) createOrder(idempotent)
+```

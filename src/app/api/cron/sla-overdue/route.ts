@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { jsonError, jsonOk } from '@/lib/api/http';
 import { findSlaOverdueOrderIds } from '@/lib/notifications/dispatch';
 import { runSlaOverdue } from '@/lib/notifications/hooks';
@@ -6,7 +7,12 @@ function authorizeCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) return false;
   const auth = request.headers.get('authorization');
-  return auth === `Bearer ${secret}`;
+  if (!auth || !auth.startsWith('Bearer ')) return false;
+  const token = auth.slice('Bearer '.length);
+  const expected = Buffer.from(secret);
+  const received = Buffer.from(token);
+  if (expected.length !== received.length) return false;
+  return timingSafeEqual(expected, received);
 }
 
 async function runSlaOverdueJob() {

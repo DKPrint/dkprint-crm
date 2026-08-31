@@ -1,0 +1,28 @@
+---
+description: Universal cross-service API contracts — deploy order, idempotency, cache, errors
+alwaysApply: true
+---
+
+# Integration contracts
+
+When a change touches request/response shape, env names, secrets, or webhooks across apps:
+
+## Before coding
+
+1. Name every **consumer** and **provider** (repo + route).
+2. State **deploy order** (provider first, then consumers).
+3. State a **1-minute smoke** and a **rollback** (revert / feature flag).
+
+## Hard requirements
+
+- No hardcoded **prod** URLs as silent fallback when env is missing — fail closed in non-prod.
+- Document cache/TTL on shared catalogs; do not treat stale pricing as safe for order create without a flag/alert.
+- Creates that mint orders/money/leads: **Idempotency-Key** and/or unique `externalId` (+ DB unique).
+- Breaking renames need version field or dual-read; never "rename for clarity" across repos in one silent PR.
+- At public/machine boundaries handle and log: `401/403/404/409/422/429/500` — do not invent only happy path.
+- Rate-limit: login, public forms, calculate, PDF/export, AI/proxy APIs.
+
+```text
+❌ Change /api/calculate response in provider; deploy consumer first
+✅ Deploy provider → smoke → deploy consumers → smoke ingest
+```
