@@ -2,7 +2,7 @@
 
 Operational notes for staging/prod. **No secret values** in this file — only names and procedures.
 
-Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.5).
+Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.6).
 
 ## Source of truth map
 
@@ -18,6 +18,8 @@ Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.5).
 | Telegram live card                 | CRM `orders.telegram_message_id` + Bot API      | Outbound only; chat = `TELEGRAM_CHAT_ID`                                                            |
 | Web Push subscriptions             | CRM + VAPID                                     | Event-driven; not TG                                                                                |
 | Categories / SLA defaults          | CRM admin                                       | Prefer deactivate over hard-delete                                                                  |
+| Product catalog / list prices      | CRM `catalog_*` (§13.1)                         | Admin import/export; order lines snapshot price; not browser SoT                                    |
+| Consumables BOM                    | `catalog_product_consumables`                   | Schema in v1; warehouse write-off = roadmap                                                         |
 
 Do **not** treat client-submitted floats as money truth without going through `lib/money`.
 
@@ -40,12 +42,13 @@ See `.env.example`.
 
 ## Migrations (apply in order on Neon)
 
-1. `migrations/001_init.sql`
+1. `migrations/001_init.sql` (greenfield includes catalog tables from 9b.1)
 2. `migrations/seed.sql` (categories, SLA, transitions)
 3. `migrations/002_orders_telegram_message_id.sql`
 4. `migrations/003_orders_is_urgent.sql`
 5. `migrations/004_order_items_name.sql`
-6. `npm run seed:admin`
+6. `migrations/005_catalog.sql` — catalog_* + order_items links (skip if DB created from current `001`)
+7. `npm run seed:admin`
 
 Optional: `CONFIRM_SEED_DEMO=yes npm run seed:demo`.
 

@@ -1,5 +1,13 @@
 -- Phase 9b.1 — product catalog schema + order_items links (TZ §14.10, §14.18–14.22)
--- Apply after 004_order_items_name.sql
+-- Apply after 004_order_items_name.sql on existing DBs.
+--
+-- Sanity (TZ):
+--   catalog_categories  — tree via parent_id; external_code UNIQUE WHERE NOT NULL (1С match)
+--   catalog_products    — leaf category_id; unit_price NUMERIC(12,2) snapshot source
+--   catalog_consumables + catalog_product_consumables — BOM stub for warehouse (+2)
+--   catalog_import_runs — import audit (who / replace_prices / counts)
+--   order_items         — catalog_product_id NULL, is_manual DEFAULT false,
+--                         category_id nullable (legacy flat categories)
 
 CREATE TABLE IF NOT EXISTS catalog_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

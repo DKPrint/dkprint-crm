@@ -1,6 +1,6 @@
 # HANDOFF — DKPrint CRM
 
-Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (v1.5). Ops: `@OPS.md`.
+Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6**). Ops: `@OPS.md`.
 
 ## Done (shipped on main)
 
@@ -15,15 +15,25 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (v1.5). 
 - Orders list poll 30s + urgent checkbox
 - Item field `name` (migration 004)
 - Audit UI/API: admin \| production only; readable labels; no-op patch skip
-- Admin: users / categories / SLA basics
+- Cron `/api/cron/sla-overdue` + OPS/HANDOFF drafts
 - Cursor rules: DKPrint invariants + SoT / contracts / auth-webhooks + pre-push CI
+- **9b.1 catalog schema** (`migrations/005_catalog.sql` + greenfield in `001_init.sql`): `catalog_categories` / `catalog_products` / BOM / `catalog_import_runs`; `order_items.catalog_product_id`, `is_manual`; `category_id` nullable
+
+## Next (priority)
+
+1. **Фаза 9b — Каталог (остаток)** (§13.1): admin CRUD + import/export xlsx, read API, cascading order form + manual line, price snapshot on server
+2. **Фаза 6** — Clients + Tasks (pages are stubs today)
+3. **Фаза 9** — Admin users UI
+4. **Фаза 7** — Admin SLA UI (cron API already exists)
+5. **Фаза 8** — Reports + export
+6. **Фаза 10** — Full §22 acceptance
 
 ## Not done / stubs (do not claim complete)
 
-- `/tasks` and `/reports` — placeholder pages; no full API/UI per TZ §12.3–12.4
+- `/tasks`, `/clients`, `/reports`, `/admin/users`, `/admin/categories`, `/admin/sla` — placeholder `<h1>` only
+- Product catalog UI/API (§13.1) — schema only (9b.1); admin/read/order form not built
+- Warehouse write-off — roadmap +2 (BOM tables exist)
 - Public calculator / site dual pricing — out of v1
-- Login rate-limit, order create Idempotency-Key — deferred hardening
-- R2 orphan cleanup — roadmap
 
 ## Do not
 
@@ -34,6 +44,8 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (v1.5). 
 - Call `syncOrderTelegramCard` from item add/patch/delete/price
 - Trust UI-only hiding as authorization
 - Barrel-re-export inside `"use server"` files
+- Ship catalog as a separate microservice in v1 (module in same app)
+- Store full catalog+prices in browser as SoT; always resolve catalog line price on server
 
 ## Before push
 
@@ -41,4 +53,13 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (v1.5). 
 
 ## Neon checklist
 
-Confirm migrations `002`–`004` applied if DB was created from older `001` only.
+Apply in order if the DB was created from an older `001` (or never got later files):
+
+1. `migrations/002_orders_telegram_message_id.sql`
+2. `migrations/003_orders_is_urgent.sql`
+3. `migrations/004_order_items_name.sql`
+4. **`migrations/005_catalog.sql`** — `catalog_*` + `order_items.catalog_product_id` / `is_manual` + nullable `category_id`
+
+Fresh greenfield: run current `001_init.sql` (includes catalog) + `seed.sql`, then skip `002`–`005` only if those columns/tables already exist.
+
+Smoke after `005`: `\d catalog_products`, `\d order_items` — expect `catalog_product_id`, `is_manual`, nullable `category_id`.
