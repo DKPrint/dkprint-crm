@@ -24,6 +24,7 @@ export const emptyPermissionFlags: PermissionFlags = {
  * Effective permissions per TZ §3.
  * Designer never cancel/soft-delete; edit_price only admin or production+flag
  * (designer / photo_center / courier hard-denied even with can_edit_price).
+ * access_reports: photo_center / courier hard-denied even with flag.
  */
 export function can(
   role: Role,
@@ -38,6 +39,10 @@ export function can(
     action === 'edit_price' &&
     (role === 'designer' || role === 'photo_center' || role === 'courier')
   ) {
+    return false;
+  }
+
+  if (action === 'access_reports' && (role === 'photo_center' || role === 'courier')) {
     return false;
   }
 

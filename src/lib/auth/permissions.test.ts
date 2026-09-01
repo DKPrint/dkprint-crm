@@ -65,6 +65,14 @@ describe('permissions', () => {
   it('admin → edit_price = true', () => {
     assert.equal(can('admin', 'edit_price'), true);
   });
+
+  it('photo_center + can_access_reports → access_reports = false', () => {
+    assert.equal(can('photo_center', 'access_reports', allFlagsTrue), false);
+  });
+
+  it('courier + can_access_reports → access_reports = false', () => {
+    assert.equal(can('courier', 'access_reports', allFlagsTrue), false);
+  });
 });
 
 describe('assertOrderAccess', () => {

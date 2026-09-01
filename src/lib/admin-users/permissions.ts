@@ -23,17 +23,25 @@ export function permissionInputToFlags(
   };
 }
 
-/** Designer: cancel/soft-delete flags are never stored (TZ §3.2 / §13). */
+/** Designer: cancel/soft-delete flags are never stored (TZ §3.2 / §13).
+ * photo_center / courier: reports flag never stored (TZ §3 matrix).
+ */
 export function normalizePermissionOverridesForRole(
   role: Role,
   flags: PermissionFlags,
 ): PermissionFlags {
-  if (role !== 'designer') return flags;
-  return {
-    ...flags,
-    can_cancel_order: false,
-    can_soft_delete_order: false,
-  };
+  let next = flags;
+  if (role === 'designer') {
+    next = {
+      ...next,
+      can_cancel_order: false,
+      can_soft_delete_order: false,
+    };
+  }
+  if (role === 'photo_center' || role === 'courier') {
+    next = { ...next, can_access_reports: false };
+  }
+  return next;
 }
 
 export function flagsToApiPermissions(flags: PermissionFlags) {
@@ -57,6 +65,9 @@ export function editablePermissionKeys(role: Role): Array<keyof PermissionFlags>
   ];
   if (role === 'designer') {
     return all.filter((k) => k !== 'can_cancel_order' && k !== 'can_soft_delete_order');
+  }
+  if (role === 'photo_center' || role === 'courier') {
+    return all.filter((k) => k !== 'can_access_reports' && k !== 'can_edit_price');
   }
   return all;
 }

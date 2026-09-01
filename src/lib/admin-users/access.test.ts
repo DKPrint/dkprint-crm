@@ -44,6 +44,13 @@ describe('permission overrides §3.2', () => {
     const keys = editablePermissionKeys('production');
     assert.equal(keys.includes('can_cancel_order'), true);
   });
+
+  it('photo_center hides reports and edit_price keys', () => {
+    const keys = editablePermissionKeys('photo_center');
+    assert.equal(keys.includes('can_access_reports'), false);
+    assert.equal(keys.includes('can_edit_price'), false);
+    assert.equal(keys.includes('can_cancel_order'), true);
+  });
 });
 
 describe('last admin guard', () => {
