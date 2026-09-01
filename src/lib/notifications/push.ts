@@ -147,6 +147,14 @@ export async function deletePushSubscription(userId: string, endpoint: string): 
   `;
 }
 
+/** True when the user has at least one row in push_subscriptions. */
+export async function userHasPushSubscription(userId: string): Promise<boolean> {
+  const rows = await sql`
+    SELECT 1 FROM push_subscriptions WHERE user_id = ${userId}::uuid LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
 export async function loadOrderPushContext(orderId: string): Promise<{
   id: string;
   clientId: string;
