@@ -876,3 +876,37 @@ table.data tbody tr.is-clickable {
   font-size: 13px;
   min-height: 32px;
 }
+
+@media print {
+  .sidebar,
+  .header,
+  .push-banner,
+  .no-print {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+    min-height: auto;
+  }
+
+  .main {
+    padding: 12px;
+    max-width: none;
+  }
+
+  .reports-print .card {
+    break-inside: avoid;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+
+  .reports-print .kpis {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .reports-print a.linkish {
+    text-decoration: none;
+    color: inherit;
+  }
+}

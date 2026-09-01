@@ -158,17 +158,44 @@ export function ReportsDashboard() {
 
   const periodLabel = period ? `${period.from} — ${period.to}` : null;
 
+  function exportQuery(format: 'csv' | 'xlsx'): string {
+    const params = new URLSearchParams();
+    params.set('format', format);
+    if (fromParam) params.set('from', fromParam);
+    if (toParam) params.set('to', toParam);
+    return params.toString();
+  }
+
   return (
-    <div className="stack">
+    <div className="stack reports-print">
       <div className="page-head">
         <div>
           <h1>Отчёты</h1>
           <p className="lede">KPI по периоду (исключены отменённые и soft-delete) — §12.4</p>
         </div>
+        <div className="no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <a
+            className="btn btn-secondary"
+            href={`/api/reports/export?${exportQuery('csv')}`}
+            download
+          >
+            CSV
+          </a>
+          <a
+            className="btn btn-secondary"
+            href={`/api/reports/export?${exportQuery('xlsx')}`}
+            download
+          >
+            Excel
+          </a>
+          <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
+            Печать
+          </button>
+        </div>
       </div>
 
       <form
-        className="card toolbar"
+        className="card toolbar no-print"
         onSubmit={(e) => {
           e.preventDefault();
           applyPeriod();
