@@ -17,7 +17,115 @@ jobs:
           cache: npm
       - run: npm install -g npm@10
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm test
+      - name: Typecheck
+        id: typecheck
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee /tmp/ci-typecheck.log
+      - name: Lint
+        id: lint
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee /tmp/ci-lint.log
+      - name: Format check
+        id: format
+        run: |
+          set -o pipefail
+          npm run format:check 2>&1 | tee /tmp/ci-format.log
+      - name: Test
+        id: test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/ci-test.log
+      - name: Notify dev Telegram on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
+          OUTCOME_TYPECHECK: ${{ steps.typecheck.outcome }}
+          OUTCOME_LINT: ${{ steps.lint.outcome }}
+          OUTCOME_FORMAT: ${{ steps.format.outcome }}
+          OUTCOME_TEST: ${{ steps.test.outcome }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_DEV_CHAT_ID" ]; then
+            echo "Telegram dev alerts not configured (skip)"
+            exit 0
+          fi
+
+          EVENT="${{ github.event_name }}"
+          REF="${{ github.head_ref || github.ref_name }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+
+          STEP="неизвестный шаг"
+          HINT="Откройте лог CI по ссылке, воспроизведите локально тот же шаг."
+          LOG_FILE=""
+
+          if [ "$OUTCOME_TYPECHECK" = "failure" ]; then
+            STEP="typecheck (TypeScript)"
+            HINT="Исправьте типы в файлах из лога. Локально: npm run typecheck"
+            LOG_FILE=/tmp/ci-typecheck.log
+          elif [ "$OUTCOME_LINT" = "failure" ]; then
+            STEP="lint (ESLint)"
+            HINT="Исправьте замечания ESLint. Локально: npm run lint (где можно — с --fix)"
+            LOG_FILE=/tmp/ci-lint.log
+          elif [ "$OUTCOME_FORMAT" = "failure" ]; then
+            STEP="format:check (Prettier)"
+            HINT="Приведите форматирование к Prettier. Локально: npx prettier --write ."
+            LOG_FILE=/tmp/ci-format.log
+          elif [ "$OUTCOME_TEST" = "failure" ]; then
+            STEP="test (unit)"
+            HINT="Исправьте упавший тест. Локально: npm test"
+            LOG_FILE=/tmp/ci-test.log
+          fi
+
+          # Первая содержательная строка ошибки + хвост лога
+          ERROR_LINE=""
+          LOG_SNIPPET=""
+          if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+            ERROR_LINE=$(grep -E -m1 "error TS|Error:|✖|FAIL |AssertionError|Code style issues|ELIFECYCLE" "$LOG_FILE" || true)
+            if [ -z "$ERROR_LINE" ]; then
+              ERROR_LINE=$(tail -n 5 "$LOG_FILE" | head -n 1)
+            fi
+            LOG_SNIPPET=$(tail -n 12 "$LOG_FILE")
+          fi
+          if [ -z "$ERROR_LINE" ]; then
+            ERROR_LINE="см. фрагмент лога / полный run"
+          fi
+
+          # HTML-escape для Telegram
+          escape_html() {
+            python3 -c 'import sys,html; print(html.escape(sys.stdin.read().rstrip("\n")), end="")'
+          }
+
+          STEP_E=$(printf '%s' "$STEP" | escape_html)
+          HINT_E=$(printf '%s' "$HINT" | escape_html)
+          ERR_E=$(printf '%s' "$ERROR_LINE" | escape_html)
+          LOG_E=$(printf '%s' "$LOG_SNIPPET" | escape_html)
+          REF_E=$(printf '%s' "$REF" | escape_html)
+          EVENT_E=$(printf '%s' "$EVENT" | escape_html)
+
+          BODY=$(printf '%s\n' \
+            "<b>🔴 CI упал</b>" \
+            "${{ github.repository }} @ ${REF_E} (${EVENT_E})" \
+            "" \
+            "<b>Шаг:</b> ${STEP_E}" \
+            "<b>Ошибка:</b> ${ERR_E}" \
+            "<b>Рекомендация:</b> ${HINT_E}" \
+            "" \
+            "<b>Фрагмент лога:</b>" \
+            "<pre>${LOG_E}</pre>" \
+            "" \
+            "${RUN_URL}")
+          if [ -n "$PR_URL" ]; then
+            BODY=$(printf '%s\n%s' "$BODY" "$PR_URL")
+          fi
+
+          # Telegram limit ~4096; обрезаем с запасом
+          BODY=$(printf '%s' "$BODY" | python3 -c 'import sys; t=sys.stdin.read(); print(t[:3800] + ("…" if len(t)>3800 else ""))')
+
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_DEV_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=${BODY}"

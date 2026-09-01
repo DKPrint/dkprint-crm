@@ -15,7 +15,8 @@ Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.6).
 | Order item `name`, qty, tech       | CRM (`order_items`)                             |                                                                                                     |
 | Files / R2 keys                    | CRM (`files`) + R2                              | Key: `dkprint/{R2_ENV}/orders/{orderNumber}/items/...`                                              |
 | Audit / status events              | CRM (`order_audit_logs`, `order_status_events`) | Audit UI/API: admin \| production only                                                              |
-| Telegram live card                 | CRM `orders.telegram_message_id` + Bot API      | Outbound only; chat = `TELEGRAM_CHAT_ID`                                                            |
+| Telegram live card                 | CRM `orders.telegram_message_id` + Bot API      | Outbound only; chat = `TELEGRAM_CHAT_ID` (рабочая группа)                                           |
+| Telegram dev/ops alerts            | Bot API + `TELEGRAM_DEV_CHAT_ID`                | One-shot messages; CI/cron/infra — **не** карточки заказов                                          |
 | Web Push subscriptions             | CRM + VAPID                                     | Event-driven; not TG                                                                                |
 | Categories / SLA defaults          | CRM admin                                       | Prefer deactivate over hard-delete                                                                  |
 | Product catalog / list prices      | CRM `catalog_*` (§13.1)                         | Admin import/export; order lines snapshot price; not browser SoT                                    |
@@ -54,7 +55,8 @@ Do **not** treat client-submitted floats as money truth without going through `l
 | `CRON_SECRET`                              | Bearer for `/api/cron/sla-overdue`                                         |
 | `R2_*`                                     | Cloudflare R2 (`R2_ENV` = staging \| prod)                                 |
 | `VAPID_*`                                  | Web Push                                                                   |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`  | Outbound group card                                                        |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`  | Order live cards (рабочая группа)                                          |
+| `TELEGRAM_DEV_CHAT_ID`                     | Dev/ops alerts (отдельная группа; тот же бот)                              |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | First admin only                                                           |
 | `SEED_DEMO_PASSWORD`                       | Optional demo roster                                                       |
 
@@ -71,6 +73,21 @@ See `.env.example`.
 7. `npm run seed:admin`
 
 Optional: `CONFIRM_SEED_DEMO=yes npm run seed:demo`.
+
+## Telegram channels
+
+Two groups, one bot (`TELEGRAM_BOT_TOKEN`):
+
+| Group        | Env                    | Content                                                               |
+| ------------ | ---------------------- | --------------------------------------------------------------------- |
+| Рабочая      | `TELEGRAM_CHAT_ID`     | Live order cards (`editMessageText`), SLA / problematic flags on card |
+| Dev / Alerts | `TELEGRAM_DEV_CHAT_ID` | CI failed, future cron/uptime/Sentry — **new message each time**      |
+
+Setup dev group: create group → add bot → post a message → `getUpdates` → copy negative `chat.id` (e.g. `-100…`). Do **not** put order cards in the dev group.
+
+**GitHub Actions** (repo → Settings → Secrets): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEV_CHAT_ID`. On CI failure posts to the dev group: шаг, краткая ошибка, рекомендация на русском, фрагмент лога + ссылка на run; skips silently if secrets missing.
+
+App helper: `sendDevTelegramAlert()` in `src/lib/notifications/dev-telegram.ts` (uses `TELEGRAM_DEV_CHAT_ID` on Vercel when wired).
 
 ## Cron
 
