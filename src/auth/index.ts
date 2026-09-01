@@ -1,8 +1,21 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
+import { headers } from 'next/headers';
 import { sql } from '@/lib/db';
 import type { Role } from '@/lib/auth/permissions';
+import { checkRateLimit, getLoginRateLimitConfig } from '@/lib/rate-limit';
+
+function clientIpFromHeaders(h: Headers): string {
+  const forwarded = h.get('x-forwarded-for');
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  const realIp = h.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+  return 'unknown';
+}
 
 /**
  * Auth.js (NextAuth v5) — Credentials + JWT session (TZ §2, §15.1).
@@ -19,6 +32,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           typeof credentials?.email === 'string' ? credentials.email.trim().toLowerCase() : '';
         const password = typeof credentials?.password === 'string' ? credentials.password : '';
         if (!email || !password) return null;
+
+        const h = await headers();
+        const ip = clientIpFromHeaders(h);
+        const loginLimit = checkRateLimit(`login:${ip}:${email}`, getLoginRateLimitConfig());
+        if (!loginLimit.ok) {
+          console.warn('[rate-limit] login', { ip, email });
+          return null;
+        }
 
         const rows = await sql`
           SELECT id, email, password_hash, display_name, role, client_id, is_active

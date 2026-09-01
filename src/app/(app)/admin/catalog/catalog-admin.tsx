@@ -475,7 +475,10 @@ export function CatalogAdmin() {
       <div className="page-head">
         <div>
           <h1>Каталог продукции</h1>
-          <p className="lede">Дерево категорий и позиции с ценами (только admin)</p>
+          <p className="lede">
+            Дерево категорий и позиции с ценами (только admin). Базовый v1 — лист 1С (A–G); формат
+            «Прайс ФЦ» — commercial add-on (см. OPS).
+          </p>
         </div>
         <div className="toolbar catalog-import-toolbar">
           <input

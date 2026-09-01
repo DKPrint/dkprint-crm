@@ -1,7 +1,7 @@
 # DKPrint CRM — техническое задание v1 (полное)
 
-**Версия:** 1.6  
-**Дата:** август 2026  
+**Версия:** 1.7  
+**Дата:** сентябрь 2026  
 **Статус:** согласовано, готово к передаче в разработку  
 **Базовый документ решений:** v1.2  
 **Изменения v1.1:** гигиена кода и качество; зафиксированы auth, SLA cron, Telegram, soft-delete password, timezone; выровнен дизайн-токен фона; Definition of Done.  
@@ -9,7 +9,8 @@
 **Изменения v1.3:** выравнивание несостыковок — R2 key = orderNumber; money = decimal-lib + API number (2 знака); §22.8 полный gate §20; Приложение A = Фаза 0; auth = **Auth.js (NextAuth v5)** Credentials.  
 **Изменения v1.4:** Telegram — **живая карточка заказа** (одно сообщение на заказ, `editMessageText` при статусе и комментарии); поле `orders.telegram_message_id`; Web Push остаётся event-driven (§10.2).  
 **Изменения v1.5:** позиция заказа — поле `name` (наименование); TG-карточка показывает строки состава (sync **не** на item CRUD); очередь цеха — подстроки состава + «макет: есть/нет»; аудит на карточке/API — только admin|production, читаемые подписи.  
-**Изменения v1.6:** **каталог продукции** (модуль в CRM, не отдельный сервис): иерархия категория→подкатегория→позиция, цены, import/export xlsx (1С), ☑ «заменить цены»; заказ — выбор из каталога или ☑ «Ручная позиция»; snapshot цены в `order_items`; схема BOM расходников под будущий склад; roadmap §21 с статусами Done/Next.
+**Изменения v1.6:** **каталог продукции** (модуль в CRM, не отдельный сервис): иерархия категория→подкатегория→позиция, цены, import/export xlsx (1С), ☑ «заменить цены»; заказ — выбор из каталога или ☑ «Ручная позиция»; snapshot цены в `order_items`; схема BOM расходников под будущий склад; roadmap §21 с статусами Done/Next.  
+**Изменения v1.7:** `permission_overrides.deny_*` (admin снимает права роли); soft-delete внешних клиентов (§7); snapshot категории каталога на `order_items` (008); rate limit login + catalog import; cron Hobby 1×/день vs 15 мин на Pro/external; import: базовый v1 = 1С A–G, «Прайс ФЦ» = commercial add-on; фазы §21 синхронизированы с HANDOFF.
 
 > **Этот файл — единственный документ для старта работы в новом репозитории.**  
 > При любом расхождении с другими заметками / чатами / старыми split-docs — **верен этот файл**.  
@@ -160,14 +161,27 @@
 | `can_soft_delete_order` | Soft-delete | admin + production (роль); флаг — делегирование |
 | `can_manage_sla` | Настройка SLA | Только admin; флаг — делегирование |
 
+**Deny-флаги v1.7** (та же таблица `permission_overrides`, колонки `deny_*`):
+
+| Deny-флаг | Зеркалит grant | Назначение |
+|-----------|----------------|------------|
+| `deny_access_reports` | `can_access_reports` | Снять право, которое роль даёт по матрице |
+| `deny_edit_price` | `can_edit_price` | То же |
+| `deny_cancel_order` | `can_cancel_order` | То же |
+| `deny_soft_delete_order` | `can_soft_delete_order` | То же |
+| `deny_manage_sla` | `can_manage_sla` | То же |
+
 **Правило эффективных прав:**  
-`allowed = (роль даёт право по матрице) OR (флаг permission_overrides = true)`, кроме случаев, где матрица явно запрещает роль (например designer **никогда** не отменяет — даже с флагом `can_cancel_order` **не применять** к designer в v1; флаг для делегирования photo_center / courier при необходимости).
+Сначала **жёсткие запреты роли** (designer **никогда** cancel/soft-delete; photo_center и courier **никогда** reports — даже если deny-флаг снят).  
+Затем deny: если `deny_* = true` для действия — **запрет**, независимо от grant-флага.  
+Иначе: `allowed = (роль даёт право по матрице) OR (grant permission_overrides = true)`.
 
 Уточнение v1 по флагам cancel/delete:
 
 - Роли `admin` и `production` имеют право **без** флага.
 - Флаг нужен, чтобы выдать право **другой** роли (например photo_center).
-- Роль `designer`: кнопки отмены и soft-delete **отсутствуют**; флаг для designer **игнорировать** (не выдавать в UI админки или не применять в API).
+- Роль `designer`: кнопки отмены и soft-delete **отсутствуют**; grant и deny для designer **игнорировать** (не выдавать в UI админки, не применять в API).
+- Роли `photo_center` и `courier`: отчёты **недоступны**; `deny_access_reports` **не** может включить reports для этих ролей.
 
 Roadmap: доп. флаги без смены модели БД (новые колонки в `permission_overrides`).
 
@@ -423,6 +437,16 @@ sla_stopped_at = now()  (если ещё не stopped)
 
 Photo center **не** видит справочник всех клиентов — только работает в контексте своей точки.
 
+**Soft-delete внешних клиентов (v1.7):**
+
+| Правило | Реализация |
+|---------|------------|
+| Кто | **только admin** — `POST /api/clients/:id/soft-delete` с `{ comment }` |
+| Заблокировано | `clients.user_id IS NOT NULL` (точка сети / photo_center) → **422** |
+| Эффект | `deleted_at`, `deleted_by_user_id`, `delete_comment`; скрыт из списка и формы заказа |
+| Заказы | существующие заказы остаются привязаны; **не** отменяются автоматически |
+| Admin list | `includeDeleted=1` на `GET /api/clients` и карточке (как у orders) |
+
 ---
 
 ## 8. Цена и аудит
@@ -431,7 +455,8 @@ Photo center **не** видит справочник всех клиентов 
 |---------|----------|
 | Каталог | SoT продажных цен — `catalog_products.unit_price` (admin); правка в админке / import |
 | Позиция из каталога | при create/add item сервер **читает** цену из БД → snapshot в `order_items.unit_price`; правки каталога **не** меняют уже созданные заказы |
-| Ручная позиция | ввод цены создателем (при создании / добавлении по правам edit) |
+| Категория каталога (snapshot) | при create/add catalog-line сервер фиксирует `catalog_category_id` + `catalog_category_path` (миграция 008); отчёты «По категориям» и TG используют snapshot |
+| Ручная позиция (цена) | ввод цены создателем (при создании / добавлении по правам edit) |
 | Изменение цены в заказе после создания | admin или `can_edit_price` |
 | Аудит заказа | каждая смена цены / qty / полей → `order_audit_logs` (no-op без изменений — без записи) |
 | Просмотр аудита | UI + `GET /orders/:id/audit-logs` — **только** admin и production; читаемые подписи действий |
@@ -608,7 +633,9 @@ ELSE:
 
 ### 11.2 Job просрочки (обязательно зафиксировано)
 
-- **Vercel Cron** → `GET`/`POST` `/api/cron/sla-overdue` каждые **15 минут**.
+- **Целевой интервал (ТЗ):** каждые **15 минут** — `GET`/`POST` `/api/cron/sla-overdue`.
+- **Vercel Hobby:** максимум **1 cron в день** — в `vercel.json` зафиксировано `0 6 * * *` (06:00 UTC). Расписание `*/15` на Hobby **ломает deploy**.
+- **15 мин на prod:** Vercel **Pro** (несколько cron) **или** внешний scheduler ([cron-job.org](https://cron-job.org) и т.п.) с `Authorization: Bearer CRON_SECRET`.
 - Защита: заголовок `Authorization: Bearer CRON_SECRET` (или встроенный механизм Vercel Cron).
 - Логика: выбрать заказы `deleted_at IS NULL AND status NOT IN ('cancelled','delivered') AND sla_stopped_at IS NULL AND overdue`; для ещё не уведомлённых за последний N часов — Web Push + **редактирование** TG-карточки (§10.3).
 - Дедуп: либо поле `sla_overdue_notified_at` на `orders` (**добавить в схему v1.1**, см. §14.9), либо запись в `notification_log` с проверкой «уже слали сегодня».
@@ -698,6 +725,15 @@ ELSE:
 
 #### Правила импорта
 
+**Два формата xlsx (v1.7):**
+
+| Формат | Назначение | Статус v1 |
+|--------|------------|-----------|
+| **(1) Base v1 — 1С canonical** | Один лист, колонки A–G (`category_code` … `unit_price`); см. OPS | **Обязателен** для приёмки v1 |
+| **(2) «Прайс ФЦ» multi-sheet** | Матрица прайса фотоцентров (`fc_price` / auto-detect) | **Commercial add-on** — опциональная платная фича; код в репозитории, **не** требуется для v1 acceptance |
+
+Базовый prod-путь до leaf-policy fix: stub / admin UI или canonical 1С export; prod import 1С — deferred (§23).
+
 | Правило | Поведение |
 |---------|-----------|
 | Ключ match | `external_code` / SKU из 1С (не «похожее имя») |
@@ -771,6 +807,11 @@ can_edit_price          BOOLEAN NOT NULL DEFAULT false
 can_cancel_order        BOOLEAN NOT NULL DEFAULT false
 can_soft_delete_order   BOOLEAN NOT NULL DEFAULT false
 can_manage_sla          BOOLEAN NOT NULL DEFAULT false
+deny_access_reports     BOOLEAN NOT NULL DEFAULT false
+deny_edit_price         BOOLEAN NOT NULL DEFAULT false
+deny_cancel_order       BOOLEAN NOT NULL DEFAULT false
+deny_soft_delete_order  BOOLEAN NOT NULL DEFAULT false
+deny_manage_sla         BOOLEAN NOT NULL DEFAULT false
 updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
@@ -783,8 +824,13 @@ id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
 name        TEXT NOT NULL
 user_id     UUID UNIQUE NULL REFERENCES users(id)
 notes       TEXT NULL
+deleted_at              TIMESTAMPTZ NULL
+deleted_by_user_id      UUID NULL REFERENCES users(id)
+delete_comment          TEXT NULL
 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
+
+Soft-delete: только внешние клиенты (`user_id IS NULL`); admin only — §7.
 
 ### 14.5 `categories` (legacy flat)
 
@@ -878,6 +924,8 @@ order_id             UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE
 position_number      INT NOT NULL
 category_id          UUID NULL REFERENCES categories(id)  -- legacy; nullable после миграции на каталог
 catalog_product_id   UUID NULL REFERENCES catalog_products(id)
+catalog_category_id  UUID NULL REFERENCES catalog_categories(id)  -- snapshot при create catalog-line
+catalog_category_path TEXT NULL  -- напр. "Полиграфия / Визитки"
 is_manual            BOOLEAN NOT NULL DEFAULT false
 name                 TEXT NOT NULL DEFAULT ''
 tech_params          TEXT NULL
@@ -1548,7 +1596,7 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 
 ## 21. Порядок разработки
 
-### 21.1 Статус на момент v1.6
+### 21.1 Статус на момент v1.7
 
 | Фаза | Deliverable | Статус |
 |------|-------------|--------|
@@ -1558,26 +1606,20 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 | **3** | UI orders (+ name, urgent, polling, audit) | **Done** |
 | **4** | Workshop queue (+ состав / макет) | **Done** |
 | **5** | Comments; Web Push; Telegram live card | **Done** |
-| **5+** | OPS/HANDOFF черновики; cron SLA endpoint | **Done** (частично к фазам 7/10) |
-| **6** | Tasks + clients (API + UI) | **Next stub → делать** |
-| **7** | Admin SLA UI (+ довести cron/ops) | **Stub** (cron API есть) |
-| **8** | Reports + export | **Stub** |
-| **9** | Admin users (+ legacy categories UI) | **Stub** |
-| **9b** | **Каталог продукции** §13.1 (схема, import/export, форма заказа) | **Next (приоритет)** |
-| **10** | QA §22 полный; OPS/HANDOFF финал | **Частично** |
+| **5+** | OPS/HANDOFF; cron SLA endpoint | **Done** |
+| **6** | Clients + Tasks (API + UI) | **Done** |
+| **7** | Admin SLA UI + cron hardening | **Done** |
+| **8** | Reports + export | **Done** |
+| **9** | Admin users + permission flags / deny | **Done** |
+| **9b** | Каталог продукции §13.1 (схема, import/export, форма заказа) | **Done** |
+| **10** | QA §22 + OPS/HANDOFF финал | **In progress** (manual 5-role smoke pending) |
 
 ### 21.2 Рекомендуемый порядок дальше
 
-1. **Фаза 9b — Каталог** (блокирует удобный прайс в заказах; админ-импорт 1С).  
-2. **Фаза 6 — Clients + Tasks** (операционка).  
-3. **Фаза 9 — Admin users** (создание точек без SQL/seed).  
-4. **Фаза 7 — Admin SLA UI**.  
-5. **Фаза 8 — Reports**.  
-6. **Фаза 10 — приёмка §22**.
+1. **Фаза 10 — приёмка §22** (manual smoke по ролям, prod catalog import после leaf-policy).  
+2. Roadmap +1 / +2 по §23.
 
-9b можно параллелить с 6, если два потока; API каталога не зависит от tasks.
-
-**Ориентир полного v1 (с каталогом):** +2–4 недели к прежней оценке.
+**Ориентир:** v1 feature-complete; остаётся QA smoke и prod import 1С.
 
 ### 21.3 Фаза 9b — критерии готовности каталога
 
@@ -1677,7 +1719,9 @@ UI **прячет** кнопки; сервер **всегда** проверяе
 | +1 | Калькулятор (iframe/API в карточке) |
 | +1.5 | Пропуск `at_designer` (status graph + skip_designer на каталоге/legacy) |
 | +1.5 | Доп. permission flags в UI (в т.ч. `can_manage_catalog` если понадобится делегирование) |
+| +1.5 | **«Прайс ФЦ» import** — commercial add-on (лицензирование отдельно от base v1); base prod = canonical 1С A–G |
 | +2 | **Склад**: остатки, списание по BOM (`catalog_product_consumables` × qty позиции) при статусе производства/выдачи |
+| Опц. | Prod import 1С на prod — **deferred** до leaf-policy fix + smoke import→export→re-import (см. OPS) |
 | Опц. | Отдельный сервис каталога (если появятся внешние потребители); multipart upload; R2 cleanup; SMS; un-delete; optimistic locking; e2e |
 
 ---
@@ -1732,7 +1776,8 @@ design-system/dkprint-crm/     # MASTER.md + styles.css
 | 1.4 | авг 2026 | Telegram: живая карточка заказа (`sendMessage` + `editMessageText`); `orders.telegram_message_id`; статус жирным; комментарии обновляют карточку; cancelled/delivered тоже edit; Web Push event-driven без изменений |
 | 1.5 | авг 2026 | `order_items.name`; TG строки состава (без sync на item CRUD); workshop состав + макет есть/нет; audit UI/API только admin\|production + читаемые подписи |
 | 1.6 | авг 2026 | Каталог продукции как модуль CRM (§13.1): дерево, import/export 1С, replace prices, snapshot в заказе, ручная позиция, BOM под склад; roadmap §21 Done/Next + фаза 9b |
+| 1.7 | сен 2026 | deny_* flags; client soft-delete; catalog category snapshot (008); rate limits; cron Hobby vs 15 min; FC import = commercial add-on; фазы 0–9b Done |
 
 ---
 
-*DKPrint CRM TZ v1.6 — август 2026. Изменение scope — только новой версией этого файла.*
+*DKPrint CRM TZ v1.7 — сентябрь 2026. Изменение scope — только новой версией этого файла.*

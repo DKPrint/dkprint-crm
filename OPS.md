@@ -2,7 +2,7 @@
 
 Operational notes for staging/prod. **No secret values** in this file — only names and procedures.
 
-Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.6). Agent handoff: `HANDOFF.md`. QA checklist: `docs/QA-22-acceptance-report.md`.
+Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.7). Agent handoff: `HANDOFF.md`. QA checklist: `docs/QA-22-acceptance-report.md`.
 
 ## Phase status (§21 / §20.11)
 
@@ -77,6 +77,35 @@ Admin-only: `POST /api/admin/catalog/import`, `GET /api/admin/catalog/export`. M
 Products without `external_code` export as `crm:{uuid}` for round-trip re-import (prefix not stored as `external_code`).
 
 Export uses the same column layout.
+
+**FC «Прайс ФЦ» format:** multi-sheet matrix parser (`fc-price.ts`, import source `fc_price` / `auto`) — see **Commercial add-ons** below. Not required for base v1 acceptance.
+
+## Commercial add-ons
+
+Optional paid features beyond base v1 scope. Code may ship in repo; enablement/licensing is a business decision.
+
+### FC price import («Прайс ФЦ»)
+
+| Aspect       | Detail                                                                          |
+| ------------ | ------------------------------------------------------------------------------- |
+| What         | Parses multi-sheet FC price xlsx (matrix layout) into `catalog_*`               |
+| Code         | `src/lib/catalog/fc-price.ts`, import source `fc_price` or `auto` detect        |
+| Base v1 path | Canonical **1С flat sheet** columns A–G only (see table above) or admin stub UI |
+| Prod default | **1C canonical** or manual admin until leaf-policy fix + OPS sign-off           |
+| Acceptance   | FC format is **not** required for §22 v1 gate                                   |
+
+## Rate limits (v1)
+
+In-memory fixed window per Vercel instance (`src/lib/rate-limit.ts`). Not global — acceptable v1; Redis later if needed.
+
+| Endpoint / action                | Key                       | Default limit                    | Response                                               |
+| -------------------------------- | ------------------------- | -------------------------------- | ------------------------------------------------------ |
+| Login (Credentials)              | `login:{ip}:{email}`      | **10** / **15 min** per IP+email | Auth fails silently (`null`); log `[rate-limit] login` |
+| `POST /api/admin/catalog/import` | `catalog-import:{userId}` | **5** / **hour** per user        | **429** `{ error: "rate_limited", message: "…" }`      |
+
+**Not rate-limited in v1:** catalog import preview, catalog export, other routes.
+
+Optional env (see `.env.example`): `RATE_LIMIT_LOGIN_MAX`, `RATE_LIMIT_LOGIN_WINDOW_MS`, `RATE_LIMIT_CATALOG_IMPORT_MAX`, `RATE_LIMIT_CATALOG_IMPORT_WINDOW_MS`.
 
 ## R2 (Cloudflare)
 
@@ -172,7 +201,7 @@ Update **all** ends of a pair in one window (Vercel + Neon + R2 + Telegram), the
 npm run typecheck && npm run lint && npm run format:check && npm test
 ```
 
-Same in `.github/workflows/ci.yml` (169 unit tests as of Phase 10).
+Same in `.github/workflows/ci.yml` (173+ unit tests as of Phase 10).
 
 ## Smoke by role (§20.11 / §22)
 

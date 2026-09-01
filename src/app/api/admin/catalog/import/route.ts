@@ -6,12 +6,25 @@ import { requireAuth, sessionUser } from '@/lib/auth/requireAuth';
 import { jsonError, jsonFromError, jsonOk } from '@/lib/api/http';
 import { importCatalogXlsx } from '@/lib/catalog/import-export';
 import { CATALOG_IMPORT_MAX_BYTES, CATALOG_IMPORT_MIME_TYPES } from '@/lib/catalog/import-columns';
+import { checkRateLimit, getCatalogImportRateLimitConfig } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
     const authResult = await requireAuth();
     if (!authResult) return jsonError(401, 'unauthorized', 'Требуется вход');
     const user = sessionUser(authResult);
+
+    const importLimit = checkRateLimit(
+      `catalog-import:${user.id}`,
+      getCatalogImportRateLimitConfig(),
+    );
+    if (!importLimit.ok) {
+      return jsonError(
+        429,
+        'rate_limited',
+        `Слишком много импортов. Повторите через ${importLimit.retryAfterSec} с`,
+      );
+    }
 
     const form = await request.formData();
     const file = form.get('file');

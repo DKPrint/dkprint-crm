@@ -82,6 +82,14 @@ export function jsonFromError(err: unknown): NextResponse {
         code,
         'Не удалось определить формат xlsx. Ожидается CRM export или исходный «Прайс ФЦ» (multi-sheet).',
       );
+    case 'rate_limited':
+      return jsonError(
+        429,
+        code,
+        err instanceof Error && typeof err.cause === 'string'
+          ? err.cause
+          : 'Слишком много запросов. Повторите позже',
+      );
     default:
       if (
         code.startsWith('invalid_') ||
