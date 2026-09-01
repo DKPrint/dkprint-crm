@@ -38,6 +38,12 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 - Warehouse write-off — roadmap +2 (BOM tables exist)
 - Public calculator / site dual pricing — out of v1
 
+## Catalog — deferred (not blocking staging)
+
+- **Final category tree from 1С is not ready** — use stub categories only for now (simple leaf or root+sub test data).
+- **Import leaf-policy PR** (skip/fail rows without `subcategory_*` when root already has children; avoid products stuck on non-leaf) — **defer until a real production xlsx sample** exists. §22.8 catalog gate is OK for staging without it.
+- Before prod catalog import: fix that edge-case, lock import column mapping in OPS, smoke import → export → re-import with ☑ replace prices.
+
 ## Do not
 
 - Reintroduce the old static demo UI
@@ -65,4 +71,12 @@ Apply in order if the DB was created from an older `001` (or never got later fil
 
 Fresh greenfield: run current `001_init.sql` (includes catalog) + `seed.sql`, then skip `002`–`005` only if those columns/tables already exist.
 
-Smoke after `005`: `\d catalog_products`, `\d order_items` — expect `catalog_product_id`, `is_manual`, nullable `category_id`.
+**Verified on Neon (2026-09-01):** `002`–`005` **applied** — `telegram_message_id`, `is_urgent`, `order_items.name`, `catalog_*` tables, `catalog_product_id` / `is_manual`, `category_id` nullable.
+
+Smoke after `005`:
+
+- `\d catalog_products`, `\d order_items` — OK on Neon.
+- **Login (admin):** bcrypt + HTTP Auth.js session → `/api/orders` 200.
+- **Manual line order:** OK (`DK-260901-1` smoke).
+- **Catalog line order:** **FAIL** — `order_items.category_id` FK still → legacy `categories(id)`; app writes `catalog_categories` UUID on catalog lines → `23503`. Fix = app sets `category_id` NULL for catalog lines (or FK migration); **not** a missing-005 issue.
+- Catalog was empty; ops stub inserted: category `Smoke Print` / product `Smoke Визитки` (12.50) for read/snapshot smoke only.

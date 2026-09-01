@@ -3,6 +3,8 @@ import { toApiNumber } from '@/lib/money';
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
 import { assertCatalogAdmin } from './access';
 import { bumpImportCounts, resolveProductImport, type ImportRunCounts } from './import-rules';
+import { assertLeafCategory } from './categories';
+import { exportableProductCode, parseCrmProductCode } from './leaf-and-code';
 import { buildCatalogXlsx, parseCatalogXlsx, type CatalogExportRow } from './xlsx';
 
 type DbCategory = {
@@ -45,17 +47,33 @@ async function loadCategoryByCode(): Promise<Map<string, DbCategory>> {
   return map;
 }
 
-async function loadProductByCode(): Promise<Map<string, DbProduct>> {
+async function loadProducts(): Promise<{
+  byCode: Map<string, DbProduct>;
+  byId: Map<string, DbProduct>;
+}> {
   const rows = (await sql`
     SELECT id, category_id, name, external_code, unit_price
     FROM catalog_products
-    WHERE external_code IS NOT NULL
   `) as DbProduct[];
-  const map = new Map<string, DbProduct>();
+  const byCode = new Map<string, DbProduct>();
+  const byId = new Map<string, DbProduct>();
   for (const row of rows) {
-    if (row.external_code) map.set(row.external_code, row);
+    byId.set(row.id, row);
+    if (row.external_code) byCode.set(row.external_code, row);
   }
-  return map;
+  return { byCode, byId };
+}
+
+function findProductByImportCode(
+  productCode: string,
+  byCode: Map<string, DbProduct>,
+  byId: Map<string, DbProduct>,
+): DbProduct | null {
+  const byExternal = byCode.get(productCode);
+  if (byExternal) return byExternal;
+  const crmId = parseCrmProductCode(productCode);
+  if (crmId) return byId.get(crmId) ?? null;
+  return null;
 }
 
 async function insertCategory(
@@ -74,13 +92,30 @@ async function insertCategory(
 async function insertProduct(
   categoryId: string,
   name: string,
-  externalCode: string,
+  externalCode: string | null,
   unitPrice: string,
-): Promise<void> {
-  await sql`
+): Promise<DbProduct> {
+  await assertLeafCategory(categoryId);
+  const rows = (await sql`
     INSERT INTO catalog_products (category_id, name, external_code, unit_price, is_active)
     VALUES (${categoryId}::uuid, ${name}, ${externalCode}, ${unitPrice}::numeric, true)
-  `;
+    RETURNING id, category_id, name, external_code, unit_price::text AS unit_price
+  `) as DbProduct[];
+  const row = rows[0];
+  if (!row) throw new Error('product_create_failed');
+  return row;
+}
+
+/** Index a product for duplicate detection within the same import run. */
+export function indexImportedProduct(
+  product: DbProduct,
+  productKey: string,
+  byCode: Map<string, DbProduct>,
+  byId: Map<string, DbProduct>,
+): void {
+  byId.set(product.id, product);
+  if (product.external_code) byCode.set(product.external_code, product);
+  byCode.set(productKey, product);
 }
 
 async function updateProductPrice(productId: string, unitPrice: string): Promise<void> {
@@ -144,7 +179,7 @@ export async function importCatalogXlsx(
   assertCatalogAdmin(user);
   const rows = await parseCatalogXlsx(buffer);
   const categoriesByCode = await loadCategoryByCode();
-  const productsByCode = await loadProductByCode();
+  const { byCode: productsByCode, byId: productsById } = await loadProducts();
 
   let counts: ImportRunCounts = {
     createdCount: 0,
@@ -175,7 +210,7 @@ export async function importCatalogXlsx(
       }
 
       const productKey = row.productCode.trim();
-      const existing = productsByCode.get(productKey) ?? null;
+      const existing = findProductByImportCode(productKey, productsByCode, productsById);
       const action = resolveProductImport(
         existing ? { unitPrice: existing.unit_price } : null,
         row.unitPrice,
@@ -183,14 +218,15 @@ export async function importCatalogXlsx(
       );
 
       if (action === 'create') {
-        await insertProduct(leaf.id, row.productName, productKey, row.unitPrice);
-        productsByCode.set(productKey, {
-          id: '',
-          category_id: leaf.id,
-          name: row.productName,
-          external_code: productKey,
-          unit_price: row.unitPrice,
-        });
+        // crm:{uuid} is export-only; do not persist it as external_code.
+        const externalToStore = parseCrmProductCode(productKey) ? null : productKey;
+        const created = await insertProduct(
+          leaf.id,
+          row.productName,
+          externalToStore,
+          row.unitPrice,
+        );
+        indexImportedProduct(created, productKey, productsByCode, productsById);
       } else if (action === 'update_price' && existing) {
         await updateProductPrice(existing.id, row.unitPrice);
         existing.unit_price = row.unitPrice;
@@ -236,6 +272,7 @@ export async function exportCatalogXlsx(user: SessionUser): Promise<Buffer> {
   `) as DbProduct[];
 
   const exportRows: CatalogExportRow[] = products.map((p) => {
+    const productCode = exportableProductCode(p.external_code, p.id);
     const leaf = categoryById.get(p.category_id);
     if (!leaf) {
       return {
@@ -243,7 +280,7 @@ export async function exportCatalogXlsx(user: SessionUser): Promise<Buffer> {
         categoryName: '—',
         subcategoryCode: null,
         subcategoryName: null,
-        productCode: p.external_code,
+        productCode,
         productName: p.name,
         unitPrice: toApiNumber(p.unit_price),
       };
@@ -256,7 +293,7 @@ export async function exportCatalogXlsx(user: SessionUser): Promise<Buffer> {
         categoryName: root?.name ?? leaf.name,
         subcategoryCode: leaf.external_code,
         subcategoryName: leaf.name,
-        productCode: p.external_code,
+        productCode,
         productName: p.name,
         unitPrice: toApiNumber(p.unit_price),
       };
@@ -267,7 +304,7 @@ export async function exportCatalogXlsx(user: SessionUser): Promise<Buffer> {
       categoryName: leaf.name,
       subcategoryCode: null,
       subcategoryName: null,
-      productCode: p.external_code,
+      productCode,
       productName: p.name,
       unitPrice: toApiNumber(p.unit_price),
     };

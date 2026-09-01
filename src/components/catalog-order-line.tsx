@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney2, lineTotal } from '@/lib/money';
+import { catalogProductFetchPatch } from '@/lib/catalog/catalog-order-line-fetch';
+import { resolveLeafCategoryId } from '@/lib/catalog/leaf-and-code';
 
 type CatalogCategory = {
   id: string;
@@ -67,6 +69,12 @@ export function CatalogOrderLineFields({ value, onChange, disabled }: Props) {
     },
     [onChange, value],
   );
+  const onChangeRef = useRef(onChange);
+  const valueRef = useRef(value);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    valueRef.current = value;
+  });
 
   const loadRoots = useCallback(async () => {
     const res = await fetch('/api/catalog/categories', { credentials: 'same-origin' });
@@ -82,8 +90,13 @@ export function CatalogOrderLineFields({ value, onChange, disabled }: Props) {
     return () => window.clearTimeout(t);
   }, [loadRoots]);
 
-  const leafCategoryId =
-    value.subcategoryId || (value.rootCategoryId && subs.length === 0 ? value.rootCategoryId : '');
+  const selectedRoot = roots.find((r) => r.id === value.rootCategoryId);
+  const leafCategoryId = resolveLeafCategoryId({
+    rootCategoryId: value.rootCategoryId,
+    subcategoryId: value.subcategoryId,
+    rootHasChildren: selectedRoot ? selectedRoot.hasChildren : undefined,
+  });
+  const needsSub = !value.isManual && selectedRoot?.hasChildren === true;
 
   useEffect(() => {
     if (value.isManual || !value.rootCategoryId) {
@@ -95,15 +108,25 @@ export function CatalogOrderLineFields({ value, onChange, disabled }: Props) {
       const t = window.setTimeout(() => setSubs([]), 0);
       return () => window.clearTimeout(t);
     }
+    const ac = new AbortController();
     const t = window.setTimeout(() => {
       void fetch(`/api/catalog/categories?parentId=${encodeURIComponent(value.rootCategoryId)}`, {
         credentials: 'same-origin',
+        signal: ac.signal,
       })
         .then((res) => res.json())
-        .then((data: { categories?: CatalogCategory[] }) => setSubs(data.categories ?? []))
-        .catch(() => setLoadError('Не удалось загрузить подкатегории'));
+        .then((data: { categories?: CatalogCategory[] }) => {
+          if (!ac.signal.aborted) setSubs(data.categories ?? []);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          setLoadError('Не удалось загрузить подкатегории');
+        });
     }, 0);
-    return () => window.clearTimeout(t);
+    return () => {
+      window.clearTimeout(t);
+      ac.abort();
+    };
   }, [value.isManual, value.rootCategoryId, roots]);
 
   useEffect(() => {
@@ -111,39 +134,55 @@ export function CatalogOrderLineFields({ value, onChange, disabled }: Props) {
       const t = window.setTimeout(() => setProducts([]), 0);
       return () => window.clearTimeout(t);
     }
+    const ac = new AbortController();
     const t = window.setTimeout(() => {
       void fetch(`/api/catalog/products?categoryId=${encodeURIComponent(leafCategoryId)}`, {
         credentials: 'same-origin',
+        signal: ac.signal,
       })
         .then((res) => res.json())
-        .then((data: { products?: CatalogProduct[] }) => setProducts(data.products ?? []))
-        .catch(() => setLoadError('Не удалось загрузить позиции'));
+        .then((data: { products?: CatalogProduct[] }) => {
+          if (!ac.signal.aborted) setProducts(data.products ?? []);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          setLoadError('Не удалось загрузить позиции');
+        });
     }, 0);
-    return () => window.clearTimeout(t);
+    return () => {
+      window.clearTimeout(t);
+      ac.abort();
+    };
   }, [value.isManual, leafCategoryId]);
 
   useEffect(() => {
     if (value.isManual || !value.catalogProductId) return;
+    const productId = value.catalogProductId;
+    const ac = new AbortController();
     const t = window.setTimeout(() => {
-      void fetch(`/api/catalog/products/${encodeURIComponent(value.catalogProductId)}`, {
+      void fetch(`/api/catalog/products/${encodeURIComponent(productId)}`, {
         credentials: 'same-origin',
+        signal: ac.signal,
       })
         .then((res) => res.json())
         .then((data: { product?: CatalogProduct }) => {
+          if (ac.signal.aborted) return;
           const p = data.product;
           if (!p) return;
-          patch({
-            name: p.name,
-            unitPrice: formatMoney2(p.unitPrice),
-          });
+          const patchFields = catalogProductFetchPatch(productId, p, valueRef.current);
+          if (!patchFields) return;
+          onChangeRef.current({ ...valueRef.current, ...patchFields });
         })
-        .catch(() => setLoadError('Не удалось загрузить цену'));
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          setLoadError('Не удалось загрузить цену');
+        });
     }, 0);
-    return () => window.clearTimeout(t);
-  }, [value.isManual, value.catalogProductId, patch]);
-
-  const selectedRoot = roots.find((r) => r.id === value.rootCategoryId);
-  const needsSub = !value.isManual && selectedRoot?.hasChildren === true;
+    return () => {
+      window.clearTimeout(t);
+      ac.abort();
+    };
+  }, [value.isManual, value.catalogProductId]);
 
   return (
     <div className="stack">

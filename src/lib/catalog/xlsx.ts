@@ -98,7 +98,7 @@ export type CatalogExportRow = {
   categoryName: string;
   subcategoryCode: string | null;
   subcategoryName: string | null;
-  productCode: string | null;
+  productCode: string;
   productName: string;
   unitPrice: number;
 };
@@ -113,7 +113,7 @@ export async function buildCatalogXlsx(rows: CatalogExportRow[]): Promise<Buffer
       row.categoryName,
       row.subcategoryCode ?? '',
       row.subcategoryName ?? '',
-      row.productCode ?? '',
+      row.productCode,
       row.productName,
       formatMoney2(row.unitPrice),
     ]);

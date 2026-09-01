@@ -160,3 +160,21 @@ export async function patchCategory(
     throw err;
   }
 }
+
+/** §13.1: products only on leaf categories (no children). */
+export async function assertLeafCategory(categoryId: string): Promise<void> {
+  const rows = (await sql`
+    SELECT id FROM catalog_categories
+    WHERE id = ${categoryId}::uuid
+      AND NOT EXISTS (
+        SELECT 1 FROM catalog_categories child WHERE child.parent_id = ${categoryId}::uuid
+      )
+    LIMIT 1
+  `) as { id: string }[];
+  if (rows.length > 0) return;
+  const exists = (await sql`
+    SELECT id FROM catalog_categories WHERE id = ${categoryId}::uuid LIMIT 1
+  `) as { id: string }[];
+  if (exists.length === 0) throw new Error('category_not_found');
+  throw new Error('category_has_children');
+}

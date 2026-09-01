@@ -27,6 +27,7 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'product_not_found':
     case 'consumable_not_found':
     case 'bom_line_not_found':
+    case 'client_not_found':
       return jsonError(404, code, 'Не найдено');
     case 'file_not_ready':
       return jsonError(400, code, 'Файл ещё не загружен');
@@ -52,6 +53,8 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'photo_center_cannot_change_status':
     case 'invalid_status':
       return jsonError(400, code, err instanceof Error ? (err.cause as string) || code : code);
+    case 'category_has_children':
+      return jsonError(400, code, 'Товар можно создать только в конечной категории');
     case 'empty_workbook':
       return jsonError(400, code, 'Файл пустой или без данных');
     case 'no_data_rows':

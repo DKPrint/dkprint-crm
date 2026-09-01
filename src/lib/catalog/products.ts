@@ -2,6 +2,7 @@ import { sql } from '@/lib/db';
 import { formatMoney2, toApiNumber } from '@/lib/money';
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
 import { assertCatalogAdmin } from './access';
+import { assertLeafCategory } from './categories';
 
 type DbProduct = {
   id: string;
@@ -72,6 +73,7 @@ export async function createProduct(
     SELECT id FROM catalog_categories WHERE id = ${input.categoryId} LIMIT 1
   `;
   if (cats.length === 0) throw new Error('category_not_found');
+  await assertLeafCategory(input.categoryId);
 
   const unit = formatMoney2(input.unitPrice);
   const externalCode = input.externalCode?.trim() ? input.externalCode.trim() : null;
