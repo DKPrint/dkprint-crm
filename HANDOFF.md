@@ -78,5 +78,5 @@ Smoke after `005`:
 - `\d catalog_products`, `\d order_items` — OK on Neon.
 - **Login (admin):** bcrypt + HTTP Auth.js session → `/api/orders` 200.
 - **Manual line order:** OK (`DK-260901-1` smoke).
-- **Catalog line order:** **FAIL** — `order_items.category_id` FK still → legacy `categories(id)`; app writes `catalog_categories` UUID on catalog lines → `23503`. Fix = app sets `category_id` NULL for catalog lines (or FK migration); **not** a missing-005 issue.
+- **Catalog line order:** fixed in app — catalog lines store `category_id` NULL (`catalog_product_id` is SoT); legacy FK on `categories(id)` unchanged. Prod **must** have `005` applied (`catalog_product_id`, `is_manual`, nullable `category_id`) or POST `/api/orders` 500s on missing columns.
 - Catalog was empty; ops stub inserted: category `Smoke Print` / product `Smoke Визитки` (12.50) for read/snapshot smoke only.

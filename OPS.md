@@ -103,7 +103,8 @@ App helper: `sendDevTelegramAlert()` in `src/lib/notifications/dev-telegram.ts` 
 
 - Path: `GET|POST /api/cron/sla-overdue`
 - Auth: `Authorization: Bearer ${CRON_SECRET}` (timing-safe compare; `src/lib/cron/auth.ts`)
-- Schedule: every **15 min** — `vercel.json` → `*/15 * * * *`
+- Schedule (Vercel **Hobby**): **once/day** — `vercel.json` → `0 6 * * *` (06:00 UTC). Hobby allows max 1 cron/day; `*/15` breaks deploy.
+- Optional **Pro** or external: hit `GET|POST /api/cron/sla-overdue` every 15 min with `Authorization: Bearer ${CRON_SECRET}` (e.g. [cron-job.org](https://cron-job.org)); route stays idempotent.
 - Logs: structured tag `[sla]` in route + `notifySlaOverdue` (no secrets)
 - Dedup: `orders.sla_overdue_notified_at` — repeat notify not more than once per 24h
 - Overdue threshold: active `sla_goals` row with `is_system_default=true` (fallback 72h)

@@ -65,7 +65,8 @@ export function resolveOrderItemLine(
   return {
     isManual: false,
     catalogProductId: catalogProduct.id,
-    categoryId: catalogProduct.categoryId,
+    // category_id FK → legacy categories(id); catalog tree lives in catalog_categories
+    categoryId: null,
     name: catalogProduct.name,
     unitPrice: resolveCatalogLineUnitPrice(catalogProduct.unitPrice, input.unitPrice),
     quantity: input.quantity,

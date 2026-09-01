@@ -28,7 +28,7 @@ describe('order item input §4.4 / §8', () => {
     );
     assert.equal(line.isManual, false);
     assert.equal(line.catalogProductId, 'prod-1');
-    assert.equal(line.categoryId, 'cat-leaf');
+    assert.equal(line.categoryId, null);
     assert.equal(line.name, 'Визитки');
     assert.equal(line.unitPrice, '12.50');
     assert.equal(line.quantity, 2);

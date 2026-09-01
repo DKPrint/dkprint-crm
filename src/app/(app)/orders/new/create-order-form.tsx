@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Role } from '@/lib/auth/permissions';
 import {
   CatalogOrderLineFields,
@@ -21,17 +21,18 @@ type Props = {
   fixedClientId: string | null;
 };
 
-function newLine(): Line {
-  return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ...emptyCatalogLine() };
+function newLine(key: string): Line {
+  return { key, ...emptyCatalogLine() };
 }
 
 export function CreateOrderForm({ role, clients, fixedClientId }: Props) {
   const router = useRouter();
   const needsClientSelect = role === 'admin' || role === 'production';
+  const lineSeq = useRef(1);
 
   const [clientId, setClientId] = useState(clients[0]?.id ?? '');
   const [courierNote, setCourierNote] = useState('');
-  const [items, setItems] = useState<Line[]>(() => [newLine()]);
+  const [items, setItems] = useState<Line[]>(() => [newLine('line-1')]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -40,7 +41,8 @@ export function CreateOrderForm({ role, clients, fixedClientId }: Props) {
   }
 
   function addItem() {
-    setItems((prev) => [...prev, newLine()]);
+    lineSeq.current += 1;
+    setItems((prev) => [...prev, newLine(`line-${lineSeq.current}`)]);
   }
 
   function removeItem(key: string) {

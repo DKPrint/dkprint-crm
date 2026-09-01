@@ -83,6 +83,12 @@ export async function POST(request: Request) {
       201,
     );
   } catch (err) {
+    const known =
+      err instanceof Error &&
+      ['forbidden', 'validation', 'conflict', 'product_not_found'].includes(err.message);
+    if (!known) {
+      console.error('[orders.create]', err);
+    }
     return jsonFromError(err);
   }
 }

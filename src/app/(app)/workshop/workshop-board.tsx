@@ -22,7 +22,7 @@ export function WorkshopBoard({ initialOrders, slaTargetHours }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(() => new Date());
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, true>>({});
 
   const refresh = useCallback(async () => {
@@ -98,12 +98,14 @@ export function WorkshopBoard({ initialOrders, slaTargetHours }: Props) {
       <div className="workshop-head">
         <div>
           <h1>Очередь цеха</h1>
-          <p className="muted">
-            Обновлено{' '}
-            {lastRefresh.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-            {' · '}
-            авто каждые {WORKSHOP_POLL_MS / 1000} с
-          </p>
+          {lastRefresh ? (
+            <p className="muted">
+              Обновлено{' '}
+              {lastRefresh.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              {' · '}
+              авто каждые {WORKSHOP_POLL_MS / 1000} с
+            </p>
+          ) : null}
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void refresh()}>
           Обновить
