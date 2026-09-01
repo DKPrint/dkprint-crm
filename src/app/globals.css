@@ -404,6 +404,38 @@ h1 {
   }
 }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.dashboard-grid .dashboard-recent {
+  grid-column: 1 / -1;
+}
+
+.dashboard-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-preview-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 13px;
+}
+
+.dashboard-delivery-row {
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .lede {
   margin-top: 6px;
   font-size: 14px;

@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { isNavItemActive } from './nav-active';
 
 describe('sidebar nav active', () => {
+  it('/dashboard → Главная active, Заказы нет', () => {
+    assert.equal(isNavItemActive('/dashboard', '/dashboard'), true);
+    assert.equal(isNavItemActive('/dashboard', '/orders'), false);
+  });
+
   it('/admin/users/uuid → Админка active, Каталог нет', () => {
     const pathname = '/admin/users/550e8400-e29b-41d4-a716-446655440000';
     assert.equal(isNavItemActive(pathname, '/admin/users'), true);

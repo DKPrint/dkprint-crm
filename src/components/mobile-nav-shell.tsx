@@ -53,7 +53,7 @@ export function MobileNavShell({ email, role, navItems, signOutForm, children }:
       ) : null}
 
       <aside id={SIDEBAR_ID} className={`sidebar${sidebarOpen ? ' is-open' : ''}`}>
-        <Link href="/orders" className="brand" onClick={closeSidebar}>
+        <Link href="/dashboard" className="brand" onClick={closeSidebar}>
           <span className="brand-mark">DK</span>
           <span>
             <span className="brand-name">DKPrint CRM</span>

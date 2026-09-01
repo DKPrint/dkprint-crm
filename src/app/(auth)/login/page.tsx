@@ -5,7 +5,7 @@ import { LoginForm } from './login-form';
 export default async function LoginPage() {
   const session = await requireAuth();
   if (session) {
-    redirect('/orders');
+    redirect('/dashboard');
   }
 
   return (

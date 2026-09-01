@@ -6,7 +6,10 @@ type NavFlags = Pick<PermissionFlags, 'can_access_reports'>;
 
 /** Role → visible sidebar items (TZ §16.2). Unavailable items are omitted. */
 export function navItemsFor(role: Role, flags: NavFlags): NavItem[] {
-  const items: NavItem[] = [{ href: '/orders', label: 'Заказы' }];
+  const items: NavItem[] = [
+    { href: '/dashboard', label: 'Главная' },
+    { href: '/orders', label: 'Заказы' },
+  ];
 
   if (role === 'admin' || role === 'production' || role === 'photo_center') {
     items.push({ href: '/orders/new', label: 'Новый заказ' });
@@ -43,6 +46,10 @@ export function navItemsFor(role: Role, flags: NavFlags): NavItem[] {
  * `/orders/new` is a separate nav right — not implied by `/orders`.
  */
 export function canAccessHref(role: Role, flags: NavFlags, href: string): boolean {
+  if (href === '/dashboard' || href.startsWith('/dashboard/')) {
+    return true;
+  }
+
   if (href.startsWith('/admin')) {
     return role === 'admin';
   }

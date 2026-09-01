@@ -14,6 +14,7 @@ function hrefs(role: Role, flags = noReports) {
 describe('navItemsFor', () => {
   it('admin sees all items including reports and admin', () => {
     assert.deepEqual(hrefs('admin'), [
+      '/dashboard',
       '/orders',
       '/orders/new',
       '/workshop',
@@ -27,6 +28,7 @@ describe('navItemsFor', () => {
 
   it('production without reports flag', () => {
     assert.deepEqual(hrefs('production'), [
+      '/dashboard',
       '/orders',
       '/orders/new',
       '/workshop',
@@ -37,6 +39,7 @@ describe('navItemsFor', () => {
 
   it('production with can_access_reports sees reports', () => {
     assert.deepEqual(hrefs('production', withReports), [
+      '/dashboard',
       '/orders',
       '/orders/new',
       '/workshop',
@@ -47,11 +50,18 @@ describe('navItemsFor', () => {
   });
 
   it('designer without reports flag', () => {
-    assert.deepEqual(hrefs('designer'), ['/orders', '/workshop', '/tasks', '/clients']);
+    assert.deepEqual(hrefs('designer'), [
+      '/dashboard',
+      '/orders',
+      '/workshop',
+      '/tasks',
+      '/clients',
+    ]);
   });
 
   it('designer with can_access_reports sees reports', () => {
     assert.deepEqual(hrefs('designer', withReports), [
+      '/dashboard',
       '/orders',
       '/workshop',
       '/tasks',
@@ -61,15 +71,26 @@ describe('navItemsFor', () => {
   });
 
   it('photo_center never sees reports even with flag', () => {
-    assert.deepEqual(hrefs('photo_center', withReports), ['/orders', '/orders/new', '/tasks']);
+    assert.deepEqual(hrefs('photo_center', withReports), [
+      '/dashboard',
+      '/orders',
+      '/orders/new',
+      '/tasks',
+    ]);
   });
 
   it('courier only sees orders', () => {
-    assert.deepEqual(hrefs('courier', withReports), ['/orders']);
+    assert.deepEqual(hrefs('courier', withReports), ['/dashboard', '/orders']);
   });
 });
 
 describe('canAccessHref', () => {
+  it('all roles can access /dashboard', () => {
+    for (const role of ['admin', 'production', 'designer', 'photo_center', 'courier'] as const) {
+      assert.equal(canAccessHref(role, noReports, '/dashboard'), true);
+    }
+  });
+
   it('admin can access admin sub-routes', () => {
     assert.equal(canAccessHref('admin', noReports, '/admin/users'), true);
     assert.equal(canAccessHref('admin', noReports, '/admin/sla'), true);

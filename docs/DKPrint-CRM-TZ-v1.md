@@ -1271,6 +1271,7 @@ created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 
 ```
 /login
+/dashboard                      — главная (сводка по роли)
 /orders                         — список
 /orders/new                     — создание
 /orders/[id]                    — карточка (+ модалы)
@@ -1285,13 +1286,16 @@ created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
 Неавторизованный → `/login`.  
-Авторизованный на `/login` → `/orders` (courier тоже).  
-Нет доступа к разделу → 403 страница / redirect на `/orders`.
+Авторизованный на `/login` → `/dashboard`.  
+Нет доступа к разделу → 403 страница / redirect на `/dashboard`.
+
+**`/dashboard` (v1.7):** операционная главная — статусы заказов (с `ordersVisibleWhere`), срочные, недавние заказы, очередь/SLA/задачи по роли; KPI деньги (месяц, APP_TIMEZONE) — admin всегда, production/designer с `can_access_reports`; photo_center и courier без KPI денег. Полная аналитика — `/reports` без изменений.
 
 ### 16.2 Навигация по ролям
 
 | Меню | Admin | Production | Designer | Photo center | Courier |
 |------|:-----:|:----------:|:--------:|:------------:|:-------:|
+| Главная | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Заказы | ✅ | ✅ | ✅ | ✅ | ✅* |
 | Новый заказ | ✅ | ✅ | — | ✅ | — |
 | Очередь | ✅ | ✅ | ✅ | — | — |
