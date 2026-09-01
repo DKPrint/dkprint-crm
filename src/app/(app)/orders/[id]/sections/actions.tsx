@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { can, type PermissionFlags, type Role } from '@/lib/auth/permissions';
@@ -114,9 +115,12 @@ export function OrderActions({ order, role, flags, onError, onSuccess }: Props) 
             Удалить
           </button>
         ) : null}
-        <button type="button" className="btn btn-ghost" disabled title="скоро">
-          Создать задачу — скоро
-        </button>
+        <Link
+          href={`/tasks/new?orderId=${encodeURIComponent(order.id)}`}
+          className="btn btn-secondary"
+        >
+          Создать задачу
+        </Link>
       </div>
       {softDeleteHint ? (
         <p className="muted" style={{ marginTop: 12 }}>

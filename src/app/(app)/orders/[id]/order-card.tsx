@@ -143,7 +143,9 @@ export function OrderCard({ initialOrder, role, flags }: Props) {
         <AuditLogs orderId={order.id} refreshKey={auditKey} />
       ) : null}
 
-      {role !== 'courier' ? <TasksSection /> : null}
+      {role !== 'courier' ? (
+        <TasksSection orderId={order.id} orderNumber={order.orderNumber} />
+      ) : null}
 
       <OrderActions
         order={order}
