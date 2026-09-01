@@ -18,14 +18,14 @@ export type SlaBadge = {
   badgeClass: string;
 };
 
-const DEFAULT_TARGET_HOURS = 72;
+import { FALLBACK_SLA_TARGET_HOURS } from '@/lib/sla/constants';
 
 /**
  * SLA badge for order card (TZ §11.1).
- * States: running | stopped | overdue vs targetHours (default 72).
+ * States: running | stopped | overdue vs targetHours (default from sla_goals).
  */
 export function computeSlaBadge(input: SlaBadgeInput): SlaBadge {
-  const targetHours = input.targetHours ?? DEFAULT_TARGET_HOURS;
+  const targetHours = input.targetHours ?? FALLBACK_SLA_TARGET_HOURS;
   const now = input.now ?? new Date();
   const started = new Date(input.slaStartedAt).getTime();
   const stoppedAt = input.slaStoppedAt ? new Date(input.slaStoppedAt).getTime() : null;

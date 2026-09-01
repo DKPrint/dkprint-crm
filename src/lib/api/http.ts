@@ -30,6 +30,7 @@ export function jsonFromError(err: unknown): NextResponse {
     case 'client_not_found':
     case 'task_not_found':
     case 'user_not_found':
+    case 'sla_goal_not_found':
       return jsonError(404, code, 'Не найдено');
     case 'file_not_ready':
       return jsonError(400, code, 'Файл ещё не загружен');
@@ -58,6 +59,8 @@ export function jsonFromError(err: unknown): NextResponse {
       return jsonError(409, code, 'Email уже занят');
     case 'client_name_required':
       return jsonError(400, code, 'Укажите название точки для photo_center');
+    case 'cannot_delete_system_default':
+      return jsonError(400, code, 'Нельзя удалить системную цель SLA по умолчанию');
     case 'reason_required':
       return jsonError(400, code, 'Укажите причину');
     case 'validation':

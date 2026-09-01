@@ -2,10 +2,9 @@ import { sql } from '@/lib/db';
 import { formatMoney2 } from '@/lib/money';
 import { shortTech } from '@/lib/orders/format-tech';
 import { statusLabel } from '@/lib/orders/status-labels';
+import { getDefaultSlaTargetHours } from '@/lib/sla/goals';
 import { logNotification } from './log';
 import type { OrderTelegramCard, TelegramCardFlags } from './types';
-
-const DEFAULT_SLA_HOURS = 72;
 
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -223,22 +222,23 @@ export async function hasProblematicComment(orderId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-function isSlaOverdue(order: OrderTelegramRow): boolean {
+function isSlaOverdue(order: OrderTelegramRow, targetHours: number): boolean {
   if (order.slaStoppedAt) return false;
   if (order.status === 'cancelled' || order.status === 'delivered') return false;
   const started = new Date(order.slaStartedAt).getTime();
   if (!Number.isFinite(started)) return false;
-  return Date.now() - started > DEFAULT_SLA_HOURS * 60 * 60 * 1000;
+  return Date.now() - started > targetHours * 60 * 60 * 1000;
 }
 
 async function resolveCardFlags(
   order: OrderTelegramRow,
   opts: TelegramCardFlags,
 ): Promise<TelegramCardFlags> {
+  const targetHours = await getDefaultSlaTargetHours();
   return {
     // Always from DB so clearing comments clears the TG badge
     problematicLayout: await hasProblematicComment(order.id),
-    slaOverdue: opts.slaOverdue === true || isSlaOverdue(order),
+    slaOverdue: opts.slaOverdue === true || isSlaOverdue(order, targetHours),
   };
 }
 

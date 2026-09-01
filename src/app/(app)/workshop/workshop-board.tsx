@@ -11,13 +11,14 @@ import type { WorkshopOrder } from '@/lib/workshop/queue';
 
 type Props = {
   initialOrders: WorkshopOrder[];
+  slaTargetHours: number;
 };
 
 function apiErrorMessage(data: { error?: string; message?: string }, fallback: string): string {
   return data.message || data.error || fallback;
 }
 
-export function WorkshopBoard({ initialOrders }: Props) {
+export function WorkshopBoard({ initialOrders, slaTargetHours }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -135,6 +136,7 @@ export function WorkshopBoard({ initialOrders }: Props) {
                 <WorkshopRow
                   key={order.id}
                   order={order}
+                  slaTargetHours={slaTargetHours}
                   pending={pendingId === order.id}
                   expanded={expandedIds[order.id] === true}
                   onToggle={() => toggleExpanded(order.id)}
@@ -152,6 +154,7 @@ export function WorkshopBoard({ initialOrders }: Props) {
 
 type RowProps = {
   order: WorkshopOrder;
+  slaTargetHours: number;
   pending: boolean;
   expanded: boolean;
   onToggle: () => void;
@@ -159,11 +162,20 @@ type RowProps = {
   onNext: () => void;
 };
 
-function WorkshopRow({ order, pending, expanded, onToggle, onPrev, onNext }: RowProps) {
+function WorkshopRow({
+  order,
+  slaTargetHours,
+  pending,
+  expanded,
+  onToggle,
+  onPrev,
+  onNext,
+}: RowProps) {
   const sla = computeSlaBadge({
     slaStartedAt: order.slaStartedAt,
     slaStoppedAt: order.slaStoppedAt,
     status: order.status,
+    targetHours: slaTargetHours,
   });
   const prevLabel = order.statusPrev ? statusLabel(order.statusPrev) : null;
   const nextLabel = order.statusNext ? statusLabel(order.statusNext) : null;

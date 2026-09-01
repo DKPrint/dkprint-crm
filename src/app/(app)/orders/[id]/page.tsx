@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getOrderById } from '@/lib/orders/queries';
+import { getDefaultSlaTargetHours } from '@/lib/sla/goals';
 import { OrderCard } from './order-card';
 
 type Props = { params: Promise<{ id: string }> };
@@ -13,7 +14,9 @@ export default async function OrderCardPage({ params }: Props) {
   const includeDeleted = session.user.role === 'admin';
 
   let order;
+  let slaTargetHours: number;
   try {
+    slaTargetHours = await getDefaultSlaTargetHours();
     order = await getOrderById(
       {
         id: session.user.id,
@@ -33,5 +36,12 @@ export default async function OrderCardPage({ params }: Props) {
     throw err;
   }
 
-  return <OrderCard initialOrder={order} role={session.user.role} flags={session.flags} />;
+  return (
+    <OrderCard
+      initialOrder={order}
+      role={session.user.role}
+      flags={session.flags}
+      slaTargetHours={slaTargetHours}
+    />
+  );
 }

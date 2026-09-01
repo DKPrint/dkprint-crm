@@ -102,9 +102,12 @@ App helper: `sendDevTelegramAlert()` in `src/lib/notifications/dev-telegram.ts` 
 ## Cron
 
 - Path: `GET|POST /api/cron/sla-overdue`
-- Auth: `Authorization: Bearer ${CRON_SECRET}` (timing-safe compare)
-- Schedule: every ~15 min (Vercel Cron)
-- Without secret → 401
+- Auth: `Authorization: Bearer ${CRON_SECRET}` (timing-safe compare; `src/lib/cron/auth.ts`)
+- Schedule: every **15 min** — `vercel.json` → `*/15 * * * *`
+- Logs: structured tag `[sla]` in route + `notifySlaOverdue` (no secrets)
+- Dedup: `orders.sla_overdue_notified_at` — repeat notify not more than once per 24h
+- Overdue threshold: active `sla_goals` row with `is_system_default=true` (fallback 72h)
+- Without secret → **401**
 
 Smoke: call without header → 401; with secret → 200.
 

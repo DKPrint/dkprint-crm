@@ -71,6 +71,7 @@ type Props = {
   initialOrder: OrderDetail;
   role: Role;
   flags: PermissionFlags;
+  slaTargetHours: number;
 };
 
 export function apiErrorMessage(
@@ -80,7 +81,7 @@ export function apiErrorMessage(
   return data.message || data.error || fallback;
 }
 
-export function OrderCard({ initialOrder, role, flags }: Props) {
+export function OrderCard({ initialOrder, role, flags, slaTargetHours }: Props) {
   const [order, setOrder] = useState(initialOrder);
   const [eventsKey, setEventsKey] = useState(0);
   const [auditKey, setAuditKey] = useState(0);
@@ -115,7 +116,7 @@ export function OrderCard({ initialOrder, role, flags }: Props) {
 
   return (
     <div className="stack">
-      <OrderHeader order={order} />
+      <OrderHeader order={order} slaTargetHours={slaTargetHours} />
 
       {error ? <p className="form-error">{error}</p> : null}
 

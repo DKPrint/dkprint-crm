@@ -3,13 +3,14 @@ import { computeSlaBadge } from '@/lib/orders/sla-badge';
 import { statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
 import type { OrderDetail } from '../order-card';
 
-type Props = { order: OrderDetail };
+type Props = { order: OrderDetail; slaTargetHours: number };
 
-export function OrderHeader({ order }: Props) {
+export function OrderHeader({ order, slaTargetHours }: Props) {
   const sla = computeSlaBadge({
     slaStartedAt: order.slaStartedAt,
     slaStoppedAt: order.slaStoppedAt,
     status: order.status,
+    targetHours: slaTargetHours,
   });
 
   return (
