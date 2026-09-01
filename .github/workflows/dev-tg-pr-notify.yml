@@ -1,0 +1,89 @@
+name: Dev TG — PR events
+
+on:
+  pull_request:
+    types: [opened, reopened, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Notify dev Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_DEV_CHAT_ID: ${{ secrets.TELEGRAM_DEV_CHAT_ID }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_DEV_CHAT_ID" ]; then
+            echo "Telegram dev alerts not configured (skip)"
+            exit 0
+          fi
+
+          escape_html() {
+            python3 -c 'import sys,html; print(html.escape(sys.stdin.read().rstrip("\n")), end="")'
+          }
+
+          send_tg() {
+            curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_DEV_CHAT_ID}" \
+              --data-urlencode "parse_mode=HTML" \
+              --data-urlencode "disable_web_page_preview=true" \
+              --data-urlencode "text=$1"
+          }
+
+          TITLE_E=$(printf '%s' "$PR_TITLE" | escape_html)
+          AUTHOR_E=$(printf '%s' "$PR_AUTHOR" | escape_html)
+          BRANCH_E=$(printf '%s' "$PR_BRANCH" | escape_html)
+
+          if [ "$ACTION" = "opened" ] || [ "$ACTION" = "reopened" ]; then
+            BODY=$(printf '%s\n' \
+              "<b>📝 Новый PR</b>" \
+              "${TITLE_E}" \
+              "${AUTHOR_E} → ${BRANCH_E}" \
+              "" \
+              "Cursor PR Review (Grok) оставит комментарий в PR." \
+              "${PR_URL}")
+            send_tg "$BODY"
+            exit 0
+          fi
+
+          if [ "$ACTION" != "closed" ] || [ "$MERGED" != "true" ]; then
+            exit 0
+          fi
+
+          CHANGED=""
+          if [ -n "$BASE_SHA" ] && [ -n "$MERGE_SHA" ]; then
+            CHANGED=$(git diff --name-only "$BASE_SHA" "$MERGE_SHA" || true)
+          fi
+
+          SMOKE=""
+          if printf '%s\n' "$CHANGED" | grep -qE '^(migrations/|\.env\.example|\.github/workflows/|src/lib/auth/|src/lib/money/|src/lib/notifications/|OPS\.md)'; then
+            SMOKE=$'\n\n<b>⚠️ Smoke после merge</b>\nNeon migrations (порядок в OPS.md), Vercel env, cron 401/200, login, TG card если менялись интеграции.'
+          fi
+
+          CHANGED_E=$(printf '%s' "$CHANGED" | head -n 8 | escape_html)
+          if [ -n "$CHANGED" ] && [ "$(printf '%s\n' "$CHANGED" | wc -l | tr -d ' ')" -gt 8 ]; then
+            CHANGED_E="${CHANGED_E}…"
+          fi
+
+          BODY=$(printf '%s\n' \
+            "<b>✅ PR merged в main</b>" \
+            "${TITLE_E}" \
+            "${AUTHOR_E} → ${BRANCH_E}" \
+            "${SMOKE}")
+          if [ -n "$CHANGED_E" ]; then
+            BODY=$(printf '%s\n\n<b>Файлы:</b>\n<pre>%s</pre>' "$BODY" "$CHANGED_E")
+          fi
+          BODY=$(printf '%s\n\n%s' "$BODY" "$PR_URL")
+
+          send_tg "$BODY"

@@ -39,6 +39,8 @@ Admin-only: `POST /api/admin/catalog/import`, `GET /api/admin/catalog/export`. M
 
 **Import rules:** existing `product_code` → skip fields; ☑ «Заменить цены» → update `unit_price` only. No code in DB → insert category/subcategory/product. Re-import without codes on categories may duplicate (use codes from 1С).
 
+Products without `external_code` export as `crm:{uuid}` so re-import always has a non-empty `product_code` and matches the same row by id (prefix is not stored as `external_code`).
+
 Export uses the same column layout.
 | Consumables BOM | `catalog_product_consumables` | Schema in v1; warehouse write-off = roadmap |
 
@@ -78,14 +80,22 @@ Optional: `CONFIRM_SEED_DEMO=yes npm run seed:demo`.
 
 Two groups, one bot (`TELEGRAM_BOT_TOKEN`):
 
-| Group        | Env                    | Content                                                               |
-| ------------ | ---------------------- | --------------------------------------------------------------------- |
-| Рабочая      | `TELEGRAM_CHAT_ID`     | Live order cards (`editMessageText`), SLA / problematic flags on card |
-| Dev / Alerts | `TELEGRAM_DEV_CHAT_ID` | CI failed, future cron/uptime/Sentry — **new message each time**      |
+| Group        | Env                    | Content                                                                 |
+| ------------ | ---------------------- | ----------------------------------------------------------------------- |
+| Рабочая      | `TELEGRAM_CHAT_ID`     | Live order cards (`editMessageText`), SLA / problematic flags on card   |
+| Dev / Alerts | `TELEGRAM_DEV_CHAT_ID` | CI fail, PR opened/merged, future cron/Sentry — **не** карточки заказов |
 
 Setup dev group: create group → add bot → post a message → `getUpdates` → copy negative `chat.id` (e.g. `-100…`). Do **not** put order cards in the dev group.
 
-**GitHub Actions** (repo → Settings → Secrets): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEV_CHAT_ID`. On CI failure posts to the dev group: шаг, краткая ошибка, рекомендация на русском, фрагмент лога + ссылка на run; skips silently if secrets missing.
+**GitHub Actions** (repo → Settings → Secrets): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_DEV_CHAT_ID`.
+
+| Workflow               | Событие            | TG-сообщение                                       |
+| ---------------------- | ------------------ | -------------------------------------------------- |
+| `ci.yml`               | CI fail            | шаг, ошибка, рекомендация RU, фрагмент лога        |
+| `dev-tg-pr-notify.yml` | PR opened/reopened | новый PR + ссылка                                  |
+| `dev-tg-pr-notify.yml` | PR merged          | merged + smoke hint если migrations/env/auth/money |
+
+**Cursor Automations** (cursor.com → Automations, модель Grok): PR Review и CI Triage → комментарий в PR; TG дублирует только ключевые события выше.
 
 App helper: `sendDevTelegramAlert()` in `src/lib/notifications/dev-telegram.ts` (uses `TELEGRAM_DEV_CHAT_ID` on Vercel when wired).
 
