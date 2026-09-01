@@ -109,6 +109,8 @@ See `.env.example`. **Never** commit real values or put secrets in `NEXT_PUBLIC_
 
 Optional demo: `CONFIRM_SEED_DEMO=yes npm run seed:demo` (after admin seed).
 
+**Full staging reset (§22 manual smoke):** `CONFIRM_WIPE_QA=yes npm run seed:wipe-qa` — wipes orders, clients, catalog, tasks, push, notifications, **all users**; recreates super-admin from `SEED_ADMIN_*` + demo roster. Refuses `R2_ENV=prod` unless `CONFIRM_WIPE_PROD=yes`. Does not delete R2 objects.
+
 ## Telegram channels
 
 Two groups, one bot (`TELEGRAM_BOT_TOKEN`):

@@ -14,6 +14,7 @@
     "seed:admin": "tsx --env-file=.env scripts/seed-admin.ts",
     "seed:demo": "tsx --env-file=.env scripts/seed-demo-users.ts",
     "seed:reset-orders": "tsx --env-file=.env scripts/reset-orders.ts",
+    "seed:wipe-qa": "tsx --env-file=.env scripts/wipe-and-seed-qa.ts",
     "parse:fc-price": "tsx scripts/parse-fc-price-xlsx.ts"
   },
   "dependencies": {
