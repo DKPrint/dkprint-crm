@@ -75,6 +75,34 @@ describe('permissions', () => {
   });
 });
 
+describe('effective permission flags (admin user form)', () => {
+  it('admin + all false overrides → all 5 effective true', () => {
+    const flags = emptyPermissionFlags;
+    assert.equal(can('admin', 'access_reports', flags), true);
+    assert.equal(can('admin', 'edit_price', flags), true);
+    assert.equal(can('admin', 'cancel_order', flags), true);
+    assert.equal(can('admin', 'soft_delete_order', flags), true);
+    assert.equal(can('admin', 'manage_sla', flags), true);
+  });
+
+  it('production + false overrides → cancel + soft_delete effective true; reports false', () => {
+    const flags = emptyPermissionFlags;
+    assert.equal(can('production', 'cancel_order', flags), true);
+    assert.equal(can('production', 'soft_delete_order', flags), true);
+    assert.equal(can('production', 'access_reports', flags), false);
+  });
+
+  it('production + canAccessReports → reports effective true', () => {
+    assert.equal(
+      can('production', 'access_reports', {
+        ...emptyPermissionFlags,
+        can_access_reports: true,
+      }),
+      true,
+    );
+  });
+});
+
 describe('assertOrderAccess', () => {
   const order = {
     client_id: 'c1',

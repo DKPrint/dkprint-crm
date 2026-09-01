@@ -566,6 +566,35 @@ table.data tbody tr.is-clickable {
   font-weight: 400;
 }
 
+.permission-flags-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.permission-flag-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-strong);
+}
+
+.permission-flag-row:last-child {
+  border-bottom: none;
+}
+
+.permission-flag-row input[type='checkbox'] {
+  flex-shrink: 0;
+}
+
 .item-card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);

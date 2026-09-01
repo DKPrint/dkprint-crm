@@ -6,8 +6,13 @@ import { AdminSubNav } from '@/components/admin-subnav';
 import { SectionBack } from '@/components/section-back';
 import { editablePermissionKeys } from '@/lib/admin-users/permissions';
 import { ADMIN_USER_ROLES, PERMISSION_LABELS, ROLE_LABELS } from '@/lib/admin-users/labels';
-import type { Role } from '@/lib/auth/permissions';
-import type { PermissionFlags } from '@/lib/auth/permissions';
+import {
+  can,
+  emptyPermissionFlags,
+  type Action,
+  type PermissionFlags,
+  type Role,
+} from '@/lib/auth/permissions';
 
 type PermissionsApi = {
   canAccessReports: boolean;
@@ -49,6 +54,14 @@ function flagsToApi(p: PermissionFlags): PermissionsApi {
     canManageSla: p.can_manage_sla,
   };
 }
+
+const PERMISSION_FLAG_ACTION: Record<keyof PermissionFlags, Action> = {
+  can_access_reports: 'access_reports',
+  can_edit_price: 'edit_price',
+  can_cancel_order: 'cancel_order',
+  can_soft_delete_order: 'soft_delete_order',
+  can_manage_sla: 'manage_sla',
+};
 
 export function UserForm({ mode, userId, initial }: Props) {
   const router = useRouter();
@@ -245,14 +258,29 @@ export function UserForm({ mode, userId, initial }: Props) {
           </label>
         ) : null}
 
-        <fieldset className="stack" style={{ border: 'none', padding: 0 }}>
+        <fieldset className="permission-flags-list">
           <legend style={{ fontWeight: 600, marginBottom: 8 }}>Флаги прав</legend>
-          {permKeys.map((key) => (
-            <label key={key} className="field checkbox-field">
-              <input type="checkbox" checked={permissions[key]} onChange={() => togglePerm(key)} />
-              {PERMISSION_LABELS[key]}
-            </label>
-          ))}
+          {permKeys.map((key) => {
+            const action = PERMISSION_FLAG_ACTION[key];
+            const effective = can(role, action, permissions);
+            const roleGranted = can(role, action, emptyPermissionFlags);
+            return (
+              <div key={key} className="permission-flag-row">
+                <input
+                  type="checkbox"
+                  checked={effective}
+                  disabled={roleGranted}
+                  onChange={() => {
+                    if (!roleGranted) togglePerm(key);
+                  }}
+                />
+                <span>
+                  {PERMISSION_LABELS[key]}
+                  {roleGranted && effective ? <span className="muted"> (от роли)</span> : null}
+                </span>
+              </div>
+            );
+          })}
           {role === 'designer' ? (
             <p className="muted" style={{ fontSize: 13 }}>
               Для дизайнера отмена и soft-delete недоступны (§3.2).
