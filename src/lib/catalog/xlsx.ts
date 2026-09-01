@@ -28,6 +28,12 @@ function columnIndexByHeader(headerRow: ExcelJS.Row): Map<CatalogXlsxColumn, num
   return map;
 }
 
+/** True when row 1 looks like CRM flat export (product_code + product_name + unit_price). */
+export function hasCrmCatalogHeaders(headerRow: ExcelJS.Row): boolean {
+  const cols = columnIndexByHeader(headerRow);
+  return cols.has('product_code') && cols.has('product_name') && cols.has('unit_price');
+}
+
 function cellText(row: ExcelJS.Row, col: number | undefined): string {
   if (!col) return '';
   const value = row.getCell(col).value;

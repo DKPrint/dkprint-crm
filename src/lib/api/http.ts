@@ -74,6 +74,12 @@ export function jsonFromError(err: unknown): NextResponse {
       return jsonError(400, code, 'Файл пустой или без данных');
     case 'no_data_rows':
       return jsonError(400, code, 'Нет строк данных в файле');
+    case 'unknown_import_format':
+      return jsonError(
+        422,
+        code,
+        'Не удалось определить формат xlsx. Ожидается CRM export или исходный «Прайс ФЦ» (multi-sheet).',
+      );
     default:
       if (
         code.startsWith('invalid_') ||

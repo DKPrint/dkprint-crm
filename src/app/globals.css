@@ -803,7 +803,18 @@ table.data tbody tr.is-clickable {
 
 .catalog-import-toolbar {
   flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
+}
+
+.catalog-import-preview {
+  margin-bottom: 16px;
+}
+
+.catalog-import-warnings {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
 }
 
 .catalog-check {

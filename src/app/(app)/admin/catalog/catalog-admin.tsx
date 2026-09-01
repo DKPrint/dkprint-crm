@@ -24,6 +24,19 @@ export function CatalogAdmin() {
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [replacePrices, setReplacePrices] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{
+    file: File;
+    format: 'crm' | 'fc_price';
+    stats: { rows: number; categories: number; subcategories: number; products: number };
+    warnings: string[];
+    sample: Array<{
+      categoryName: string;
+      subcategoryName: string | null;
+      productName: string;
+      productCode: string;
+      unitPrice: string;
+    }>;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [bomProductId, setBomProductId] = useState<string | null>(null);
@@ -339,6 +352,56 @@ export function CatalogAdmin() {
 
   const bomProduct = products.find((p) => p.id === bomProductId) ?? null;
 
+  async function previewImport(file: File) {
+    setBusy(true);
+    setError(null);
+    setImportMessage(null);
+    setImportPreview(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('source', 'auto');
+      const res = await fetch('/api/admin/catalog/import/preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: form,
+      });
+      const data = (await res.json()) as {
+        preview?: {
+          format: 'crm' | 'fc_price';
+          stats: {
+            rows: number;
+            categories: number;
+            subcategories: number;
+            products: number;
+          };
+          warnings: string[];
+          sample: Array<{
+            categoryName: string;
+            subcategoryName: string | null;
+            productName: string;
+            productCode: string;
+            unitPrice: string;
+          }>;
+        };
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(apiError(data, 'Не удалось разобрать файл'));
+        return;
+      }
+      if (data.preview) {
+        setImportPreview({ file, ...data.preview });
+      }
+    } catch {
+      setError('Не удалось разобрать файл');
+    } finally {
+      setBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   async function runImport(file: File) {
     setBusy(true);
     setError(null);
@@ -347,6 +410,7 @@ export function CatalogAdmin() {
       const form = new FormData();
       form.append('file', file);
       form.append('replacePrices', replacePrices ? 'true' : 'false');
+      form.append('source', 'auto');
       const res = await fetch('/api/admin/catalog/import', {
         method: 'POST',
         credentials: 'same-origin',
@@ -371,6 +435,7 @@ export function CatalogAdmin() {
           `Импорт: создано ${stats.createdCount}, цен обновлено ${stats.updatedPriceCount}, пропущено ${stats.skippedCount}`,
         );
       }
+      setImportPreview(null);
       await loadTree();
       if (selectedId) await loadProducts(selectedId);
     } catch {
@@ -420,7 +485,7 @@ export function CatalogAdmin() {
             className="visually-hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void runImport(file);
+              if (file) void previewImport(file);
             }}
           />
           <label className="muted catalog-check">
@@ -452,6 +517,79 @@ export function CatalogAdmin() {
       </div>
 
       {importMessage ? <p className="form-success">{importMessage}</p> : null}
+
+      {importPreview ? (
+        <div className="card stack catalog-import-preview">
+          <div className="page-head" style={{ marginBottom: 0 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Предпросмотр импорта</h2>
+              <p className="lede" style={{ marginBottom: 0 }}>
+                Формат:{' '}
+                {importPreview.format === 'fc_price' ? 'Прайс ФЦ (multi-sheet)' : 'CRM export'}
+                {' · '}
+                {importPreview.stats.rows} поз., {importPreview.stats.categories} категорий,{' '}
+                {importPreview.stats.subcategories} подкатегорий
+              </p>
+            </div>
+            <div className="toolbar" style={{ margin: 0 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => setImportPreview(null)}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="btn btn-cta"
+                disabled={busy}
+                onClick={() => void runImport(importPreview.file)}
+              >
+                Импортировать
+              </button>
+            </div>
+          </div>
+
+          {importPreview.warnings.length > 0 ? (
+            <ul className="muted catalog-import-warnings">
+              {importPreview.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Категория</th>
+                  <th>Подкатегория</th>
+                  <th>Наименование</th>
+                  <th>Код</th>
+                  <th>Цена</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importPreview.sample.map((row, i) => (
+                  <tr key={`${row.productCode}-${i}`}>
+                    <td>{row.categoryName}</td>
+                    <td className="muted">{row.subcategoryName ?? '—'}</td>
+                    <td>{row.productName}</td>
+                    <td className="mono muted">{row.productCode}</td>
+                    <td className="mono">{row.unitPrice}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {importPreview.stats.rows > importPreview.sample.length ? (
+            <p className="muted">
+              Показаны первые {importPreview.sample.length} из {importPreview.stats.rows} строк
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? <p className="form-error">{error}</p> : null}
 

@@ -1,25 +1,31 @@
 /**
- * POST /api/admin/catalog/import — multipart xlsx + replacePrices (TZ §13.1).
- * Column layout: see OPS.md «Catalog import/export xlsx» or import-columns.ts.
+ * POST /api/admin/catalog/import/preview — parse xlsx without DB write (TZ §13.1).
  */
 import { requireAuth, sessionUser } from '@/lib/auth/requireAuth';
 import { jsonError, jsonFromError, jsonOk } from '@/lib/api/http';
-import { importCatalogXlsx } from '@/lib/catalog/import-export';
+import { assertCatalogAdmin } from '@/lib/catalog/access';
 import { CATALOG_IMPORT_MAX_BYTES, CATALOG_IMPORT_MIME_TYPES } from '@/lib/catalog/import-columns';
+import {
+  buildCatalogImportPreview,
+  parseCatalogImportBuffer,
+  type CatalogImportSource,
+} from '@/lib/catalog/parse-import-buffer';
+
+function parseSource(raw: FormDataEntryValue | null): CatalogImportSource {
+  if (raw === 'crm' || raw === 'fc_price' || raw === 'auto') return raw;
+  return 'auto';
+}
 
 export async function POST(request: Request) {
   try {
     const authResult = await requireAuth();
     if (!authResult) return jsonError(401, 'unauthorized', 'Требуется вход');
     const user = sessionUser(authResult);
+    assertCatalogAdmin(user);
 
     const form = await request.formData();
     const file = form.get('file');
-    const replaceRaw = form.get('replacePrices');
-    const replacePrices = replaceRaw === 'true' || replaceRaw === '1' || replaceRaw === 'on';
-    const sourceRaw = form.get('source');
-    const source =
-      sourceRaw === 'crm' || sourceRaw === 'fc_price' || sourceRaw === 'auto' ? sourceRaw : 'auto';
+    const source = parseSource(form.get('source'));
 
     if (!(file instanceof File)) {
       return jsonError(400, 'validation', 'Укажите файл xlsx');
@@ -35,13 +41,10 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await importCatalogXlsx(user, buffer, {
-      filename: file.name || null,
-      replacePrices,
-      source,
-    });
+    const parsed = await parseCatalogImportBuffer(buffer, source);
+    const preview = buildCatalogImportPreview(parsed.format, parsed.rows, parsed.warnings);
 
-    return jsonOk({ import: result });
+    return jsonOk({ preview });
   } catch (err) {
     return jsonFromError(err);
   }

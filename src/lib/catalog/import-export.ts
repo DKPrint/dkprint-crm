@@ -5,7 +5,9 @@ import { assertCatalogAdmin } from './access';
 import { bumpImportCounts, resolveProductImport, type ImportRunCounts } from './import-rules';
 import { assertLeafCategory } from './categories';
 import { exportableProductCode, parseCrmProductCode } from './leaf-and-code';
-import { buildCatalogXlsx, parseCatalogXlsx, type CatalogExportRow } from './xlsx';
+import { parseCatalogImportBuffer, type CatalogImportSource } from './parse-import-buffer';
+import { buildCatalogXlsx, type CatalogExportRow } from './xlsx';
+import type { CatalogImportRow } from './import-columns';
 
 type DbCategory = {
   id: string;
@@ -171,13 +173,12 @@ async function ensureCategory(
   return { category: created, created: true };
 }
 
-export async function importCatalogXlsx(
+export async function importCatalogRows(
   user: SessionUser,
-  buffer: Buffer,
+  rows: CatalogImportRow[],
   options: { filename: string | null; replacePrices: boolean },
 ): Promise<CatalogImportResult> {
   assertCatalogAdmin(user);
-  const rows = await parseCatalogXlsx(buffer);
   const categoriesByCode = await loadCategoryByCode();
   const { byCode: productsByCode, byId: productsById } = await loadProducts();
 
@@ -254,6 +255,19 @@ export async function importCatalogXlsx(
     });
     throw Object.assign(new Error(message), { runId, counts });
   }
+}
+
+export async function importCatalogXlsx(
+  user: SessionUser,
+  buffer: Buffer,
+  options: {
+    filename: string | null;
+    replacePrices: boolean;
+    source?: CatalogImportSource;
+  },
+): Promise<CatalogImportResult> {
+  const { rows } = await parseCatalogImportBuffer(buffer, options.source ?? 'auto');
+  return importCatalogRows(user, rows, options);
 }
 
 export async function exportCatalogXlsx(user: SessionUser): Promise<Buffer> {
