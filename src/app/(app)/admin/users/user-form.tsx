@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AdminSubNav } from '@/components/admin-subnav';
+import { SectionBack } from '@/components/section-back';
 import { editablePermissionKeys } from '@/lib/admin-users/permissions';
 import { ADMIN_USER_ROLES, PERMISSION_LABELS, ROLE_LABELS } from '@/lib/admin-users/labels';
 import type { Role } from '@/lib/auth/permissions';
@@ -147,6 +147,7 @@ export function UserForm({ mode, userId, initial }: Props) {
   return (
     <div className="stack">
       <AdminSubNav current="/admin/users" />
+      <SectionBack href="/admin/users" label="К списку пользователей" />
 
       <div className="page-head">
         <div>
@@ -157,9 +158,6 @@ export function UserForm({ mode, userId, initial }: Props) {
               : initial?.email}
           </p>
         </div>
-        <Link href="/admin/users" className="btn">
-          К списку
-        </Link>
       </div>
 
       {error ? <p className="form-error">{error}</p> : null}

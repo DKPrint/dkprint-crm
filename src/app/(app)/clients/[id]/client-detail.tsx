@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { SectionBack } from '@/components/section-back';
 import type { Role } from '@/lib/auth/permissions';
 import { formatMoney2 } from '@/lib/money';
 import { statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
@@ -120,9 +121,7 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
   if (!client) {
     return (
       <div className="stack">
-        <Link href="/clients" className="linkish">
-          ← К списку
-        </Link>
+        <SectionBack href="/clients" label="К списку клиентов" />
         <p className="form-error">{error || 'Клиент не найден'}</p>
       </div>
     );
@@ -136,9 +135,7 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
 
   return (
     <div className="stack">
-      <Link href="/clients" className="linkish">
-        ← К списку
-      </Link>
+      <SectionBack href="/clients" label="К списку клиентов" />
 
       {error ? <p className="form-error">{error}</p> : null}
 

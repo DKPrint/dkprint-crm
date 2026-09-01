@@ -275,6 +275,18 @@ h1 {
   margin-bottom: 24px;
 }
 
+.section-back {
+  display: inline-block;
+  font-size: 14px;
+  color: var(--color-muted);
+  margin-bottom: 4px;
+  text-decoration: none;
+}
+
+.section-back:hover {
+  color: var(--color-primary);
+}
+
 .subnav {
   display: flex;
   flex-wrap: wrap;

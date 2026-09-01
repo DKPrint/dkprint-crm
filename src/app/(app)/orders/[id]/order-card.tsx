@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { SectionBack } from '@/components/section-back';
 import type { PermissionFlags, Role } from '@/lib/auth/permissions';
 import { OrderHeader } from './sections/header';
 import { StatusControls } from './sections/status-controls';
@@ -116,6 +117,7 @@ export function OrderCard({ initialOrder, role, flags, slaTargetHours }: Props) 
 
   return (
     <div className="stack">
+      <SectionBack href="/orders" label="К заказам" />
       <OrderHeader order={order} slaTargetHours={slaTargetHours} />
 
       {error ? <p className="form-error">{error}</p> : null}

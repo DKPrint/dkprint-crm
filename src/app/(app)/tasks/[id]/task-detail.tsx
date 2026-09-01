@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { SectionBack } from '@/components/section-back';
 import { TASK_PRIORITIES, TASK_STATUSES } from '@/lib/tasks/schemas';
 import { priorityLabel, statusLabel } from '@/lib/tasks/labels';
 
@@ -114,9 +115,7 @@ export function TaskDetail({ taskId }: Props) {
   if (!task) {
     return (
       <div className="stack">
-        <Link href="/tasks" className="linkish">
-          ← К списку
-        </Link>
+        <SectionBack href="/tasks" label="К списку задач" />
         <p className="form-error">{error || 'Задача не найдена'}</p>
       </div>
     );
@@ -126,9 +125,7 @@ export function TaskDetail({ taskId }: Props) {
 
   return (
     <div className="stack">
-      <Link href="/tasks" className="linkish">
-        ← К списку
-      </Link>
+      <SectionBack href="/tasks" label="К списку задач" />
 
       {error ? <p className="form-error">{error}</p> : null}
 

@@ -1,4 +1,5 @@
 import { requireNavAccess } from '@/lib/auth/require-nav-access';
+import { SectionBack } from '@/components/section-back';
 import { sql } from '@/lib/db';
 import { CreateOrderForm } from './create-order-form';
 
@@ -20,7 +21,8 @@ export default async function NewOrderPage() {
   }
 
   return (
-    <div>
+    <div className="stack">
+      <SectionBack href="/orders" label="К заказам" />
       <div className="page-head">
         <div>
           <h1>Новый заказ</h1>

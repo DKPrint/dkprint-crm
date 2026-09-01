@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { requireNavAccess } from '@/lib/auth/require-nav-access';
+import { SectionBack } from '@/components/section-back';
 import { sql } from '@/lib/db';
 import { TaskForm } from '../task-form';
 
@@ -19,9 +19,7 @@ export default async function NewTaskPage({ searchParams }: Props) {
 
   return (
     <div className="stack">
-      <Link href="/tasks" className="linkish">
-        ← К списку
-      </Link>
+      <SectionBack href="/tasks" label="К списку задач" />
       <div className="page-head">
         <div>
           <h1>Новая задача</h1>
