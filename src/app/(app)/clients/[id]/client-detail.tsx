@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { SectionBack } from '@/components/section-back';
 import type { Role } from '@/lib/auth/permissions';
@@ -16,6 +17,7 @@ type Client = {
   linkedUserEmail: string | null;
   linkedUserDisplayName: string | null;
   createdAt: string;
+  deletedAt: string | null;
 };
 
 type OrderRow = {
@@ -31,9 +33,11 @@ type Props = {
   clientId: string;
   role: Role;
   canEdit: boolean;
+  canDelete: boolean;
 };
 
-export function ClientDetail({ clientId, role, canEdit }: Props) {
+export function ClientDetail({ clientId, role, canEdit, canDelete }: Props) {
+  const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +46,9 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
   const [editName, setEditName] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [saveBusy, setSaveBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteComment, setDeleteComment] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -117,6 +124,34 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
     }
   }
 
+  async function onDelete() {
+    if (!client || !deleteComment.trim()) {
+      setError('Укажите комментарий');
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/soft-delete`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: deleteComment.trim() }),
+      });
+      const data = (await res.json()) as { message?: string };
+      if (!res.ok) {
+        setError(data.message || 'Не удалось удалить клиента');
+        return;
+      }
+      router.push('/clients');
+      router.refresh();
+    } catch {
+      setError('Не удалось удалить клиента');
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   if (loading) return <p className="muted">Загрузка…</p>;
   if (!client) {
     return (
@@ -148,18 +183,29 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
               {client.isPhotoCenter ? ' · user_id 1:1' : ' · user_id NULL'}
             </p>
           </div>
-          {canEdit ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setEditing((v) => !v)}
-            >
-              {editing ? 'Отмена' : 'Редактировать'}
-            </button>
-          ) : null}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {canEdit && !client.deletedAt ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setEditing((v) => !v)}
+              >
+                {editing ? 'Отмена' : 'Редактировать'}
+              </button>
+            ) : null}
+            {canDelete && !client.isPhotoCenter && !client.deletedAt ? (
+              <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>
+                Удалить
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        {editing && canEdit ? (
+        {client.deletedAt ? (
+          <p className="muted">Клиент удалён (soft-delete). Заказы сохранены.</p>
+        ) : null}
+
+        {editing && canEdit && !client.deletedAt ? (
           <form className="stack" onSubmit={onSave}>
             <label className="field">
               Наименование
@@ -248,6 +294,38 @@ export function ClientDetail({ clientId, role, canEdit }: Props) {
       <p className="muted" style={{ fontSize: 13 }}>
         Роль: {role}
       </p>
+
+      {deleteOpen ? (
+        <div className="overlay" role="dialog" aria-modal="true">
+          <div className="modal stack">
+            <h2>Удаление клиента</h2>
+            <p className="muted">Внешний клиент скрывается из справочника; заказы остаются.</p>
+            <label className="field">
+              Комментарий
+              <textarea
+                className="input"
+                value={deleteComment}
+                onChange={(e) => setDeleteComment(e.target.value)}
+                rows={3}
+                required
+              />
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setDeleteOpen(false)}>
+                Закрыть
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={deleteBusy}
+                onClick={() => void onDelete()}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

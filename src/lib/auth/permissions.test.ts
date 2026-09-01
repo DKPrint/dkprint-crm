@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { can, emptyPermissionFlags } from './permissions';
 import { assertOrderAccess, ordersVisibleWhere } from './assertOrderAccess';
 
-const allFlagsTrue = {
+const allGrantsTrue = {
   ...emptyPermissionFlags,
   can_access_reports: true,
   can_edit_price: true,
@@ -14,11 +14,11 @@ const allFlagsTrue = {
 
 describe('permissions', () => {
   it('designer never cancels even with flag', () => {
-    assert.equal(can('designer', 'cancel_order', allFlagsTrue), false);
+    assert.equal(can('designer', 'cancel_order', allGrantsTrue), false);
   });
 
   it('designer never soft-deletes even with flag', () => {
-    assert.equal(can('designer', 'soft_delete_order', allFlagsTrue), false);
+    assert.equal(can('designer', 'soft_delete_order', allGrantsTrue), false);
   });
 
   it('production can cancel by role', () => {
@@ -37,15 +37,15 @@ describe('permissions', () => {
   });
 
   it('designer + can_edit_price → edit_price = false', () => {
-    assert.equal(can('designer', 'edit_price', allFlagsTrue), false);
+    assert.equal(can('designer', 'edit_price', allGrantsTrue), false);
   });
 
   it('photo_center + can_edit_price → edit_price = false', () => {
-    assert.equal(can('photo_center', 'edit_price', allFlagsTrue), false);
+    assert.equal(can('photo_center', 'edit_price', allGrantsTrue), false);
   });
 
   it('courier + can_edit_price → edit_price = false', () => {
-    assert.equal(can('courier', 'edit_price', allFlagsTrue), false);
+    assert.equal(can('courier', 'edit_price', allGrantsTrue), false);
   });
 
   it('production without flag → edit_price = false', () => {
@@ -67,11 +67,55 @@ describe('permissions', () => {
   });
 
   it('photo_center + can_access_reports → access_reports = false', () => {
-    assert.equal(can('photo_center', 'access_reports', allFlagsTrue), false);
+    assert.equal(can('photo_center', 'access_reports', allGrantsTrue), false);
   });
 
   it('courier + can_access_reports → access_reports = false', () => {
-    assert.equal(can('courier', 'access_reports', allFlagsTrue), false);
+    assert.equal(can('courier', 'access_reports', allGrantsTrue), false);
+  });
+});
+
+describe('permission denials §3.2', () => {
+  it('production + deny_cancel_order → cancel false', () => {
+    assert.equal(
+      can('production', 'cancel_order', {
+        ...emptyPermissionFlags,
+        deny_cancel_order: true,
+      }),
+      false,
+    );
+  });
+
+  it('admin + deny_manage_sla → manage_sla false', () => {
+    assert.equal(
+      can('admin', 'manage_sla', {
+        ...emptyPermissionFlags,
+        deny_manage_sla: true,
+      }),
+      false,
+    );
+  });
+
+  it('designer deny_cancel ignored — still false', () => {
+    assert.equal(
+      can('designer', 'cancel_order', {
+        ...emptyPermissionFlags,
+        deny_cancel_order: false,
+        can_cancel_order: true,
+      }),
+      false,
+    );
+  });
+
+  it('photo_center deny_access_reports ignored — still false', () => {
+    assert.equal(
+      can('photo_center', 'access_reports', {
+        ...emptyPermissionFlags,
+        deny_access_reports: false,
+        can_access_reports: true,
+      }),
+      false,
+    );
   });
 });
 

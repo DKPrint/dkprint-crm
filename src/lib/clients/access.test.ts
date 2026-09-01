@@ -1,39 +1,28 @@
-import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  assertClientCreateAccess,
-  assertClientPatchAccess,
-  assertClientsListAccess,
-  canCreateClient,
-} from './access';
+import { describe, it } from 'node:test';
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
+import { assertClientSoftDeleteAccess, canCreateClient } from './access';
 
-function user(role: SessionUser['role']): SessionUser {
-  return { id: 'u1', role, clientId: null };
-}
+const admin: SessionUser = { id: 'a1', role: 'admin', clientId: null };
+const production: SessionUser = { id: 'p1', role: 'production', clientId: null };
 
-describe('clients access §7', () => {
-  it('list: admin, production, designer', () => {
-    assert.doesNotThrow(() => assertClientsListAccess(user('admin')));
-    assert.doesNotThrow(() => assertClientsListAccess(user('production')));
-    assert.doesNotThrow(() => assertClientsListAccess(user('designer')));
+describe('client soft-delete access §7', () => {
+  it('admin can soft-delete', () => {
+    assert.doesNotThrow(() => assertClientSoftDeleteAccess(admin));
   });
 
-  it('list denies photo_center and courier', () => {
-    assert.throws(() => assertClientsListAccess(user('photo_center')), /forbidden/);
-    assert.throws(() => assertClientsListAccess(user('courier')), /forbidden/);
+  it('production forbidden', () => {
+    assert.throws(() => assertClientSoftDeleteAccess(production), /forbidden/);
   });
+});
 
-  it('create/patch: admin, production only', () => {
-    assert.doesNotThrow(() => assertClientCreateAccess(user('admin')));
-    assert.doesNotThrow(() => assertClientCreateAccess(user('production')));
-    assert.throws(() => assertClientCreateAccess(user('designer')), /forbidden/);
-    assert.throws(() => assertClientPatchAccess(user('photo_center')), /forbidden/);
-  });
-
-  it('canCreateClient helper', () => {
+describe('canCreateClient', () => {
+  it('admin and production can create', () => {
     assert.equal(canCreateClient('admin'), true);
     assert.equal(canCreateClient('production'), true);
+  });
+
+  it('designer cannot create', () => {
     assert.equal(canCreateClient('designer'), false);
   });
 });

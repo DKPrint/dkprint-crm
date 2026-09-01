@@ -16,7 +16,7 @@ export default async function NewOrderPage() {
     fixedClientId = session.user.clientId;
   } else if (role === 'production' || role === 'admin') {
     clients = (await sql`
-      SELECT id, name FROM clients ORDER BY name
+      SELECT id, name FROM clients WHERE deleted_at IS NULL ORDER BY name
     `) as ClientRow[];
   }
 

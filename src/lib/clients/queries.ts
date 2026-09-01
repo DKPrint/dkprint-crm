@@ -14,6 +14,7 @@ type DbClient = {
   user_id: string | null;
   notes: string | null;
   created_at: string;
+  deleted_at: string | null;
   user_email: string | null;
   user_display_name: string | null;
 };
@@ -24,6 +25,7 @@ export type Client = {
   userId: string | null;
   notes: string | null;
   createdAt: string;
+  deletedAt: string | null;
   isPhotoCenter: boolean;
   linkedUserEmail: string | null;
   linkedUserDisplayName: string | null;
@@ -36,6 +38,7 @@ function serializeClient(row: DbClient): Client {
     userId: row.user_id,
     notes: row.notes,
     createdAt: row.created_at,
+    deletedAt: row.deleted_at,
     isPhotoCenter: row.user_id != null,
     linkedUserEmail: row.user_email,
     linkedUserDisplayName: row.user_display_name,
@@ -44,11 +47,12 @@ function serializeClient(row: DbClient): Client {
 
 export async function listClients(
   user: SessionUser,
-  filters: { q?: string } = {},
+  filters: { q?: string; includeDeleted?: boolean } = {},
 ): Promise<Client[]> {
   assertClientsListAccess(user);
   const q = filters.q?.trim() ?? '';
   const pattern = q ? `%${q}%` : null;
+  const includeDeleted = user.role === 'admin' && filters.includeDeleted === true;
 
   const rows = (await sql`
     SELECT
@@ -57,16 +61,20 @@ export async function listClients(
       c.user_id,
       c.notes,
       c.created_at,
+      c.deleted_at,
       u.email AS user_email,
       u.display_name AS user_display_name
     FROM clients c
     LEFT JOIN users u ON u.id = c.user_id
     WHERE
-      (${pattern}::text IS NULL)
-      OR c.name ILIKE ${pattern}
-      OR COALESCE(c.notes, '') ILIKE ${pattern}
-      OR COALESCE(u.email, '') ILIKE ${pattern}
-      OR COALESCE(u.display_name, '') ILIKE ${pattern}
+      (${includeDeleted} = true OR c.deleted_at IS NULL)
+      AND (
+        (${pattern}::text IS NULL)
+        OR c.name ILIKE ${pattern}
+        OR COALESCE(c.notes, '') ILIKE ${pattern}
+        OR COALESCE(u.email, '') ILIKE ${pattern}
+        OR COALESCE(u.display_name, '') ILIKE ${pattern}
+      )
     ORDER BY c.name ASC
     LIMIT 500
   `) as DbClient[];
@@ -74,8 +82,14 @@ export async function listClients(
   return rows.map(serializeClient);
 }
 
-export async function getClientById(user: SessionUser, clientId: string): Promise<Client> {
+export async function getClientById(
+  user: SessionUser,
+  clientId: string,
+  opts: { includeDeleted?: boolean } = {},
+): Promise<Client> {
   assertClientsListAccess(user);
+  const includeDeleted = user.role === 'admin' && opts.includeDeleted === true;
+
   const rows = (await sql`
     SELECT
       c.id,
@@ -83,11 +97,13 @@ export async function getClientById(user: SessionUser, clientId: string): Promis
       c.user_id,
       c.notes,
       c.created_at,
+      c.deleted_at,
       u.email AS user_email,
       u.display_name AS user_display_name
     FROM clients c
     LEFT JOIN users u ON u.id = c.user_id
     WHERE c.id = ${clientId}::uuid
+      AND (${includeDeleted} = true OR c.deleted_at IS NULL)
     LIMIT 1
   `) as DbClient[];
 
@@ -120,11 +136,12 @@ export async function patchClient(
   assertClientPatchAccess(user);
 
   const existingRows = (await sql`
-    SELECT id, name, user_id, notes, created_at
+    SELECT id, name, user_id, notes, created_at, deleted_at
     FROM clients
     WHERE id = ${clientId}::uuid
+      AND deleted_at IS NULL
     LIMIT 1
-  `) as Omit<DbClient, 'user_email' | 'user_display_name'>[];
+  `) as Array<Omit<DbClient, 'user_email' | 'user_display_name'>>;
 
   const existing = existingRows[0];
   if (!existing) throw new Error('client_not_found');

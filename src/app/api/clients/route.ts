@@ -11,8 +11,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') ?? undefined;
+    const includeDeleted = searchParams.get('includeDeleted') === 'true';
 
-    const clients = await listClients(user, { q });
+    const clients = await listClients(user, { q, includeDeleted });
     return jsonOk({ clients });
   } catch (err) {
     return jsonFromError(err);

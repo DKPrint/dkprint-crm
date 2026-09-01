@@ -8,7 +8,11 @@ export default async function ClientsPage() {
 
   return (
     <Suspense fallback={<p className="muted">Загрузка…</p>}>
-      <ClientsList role={session.user.role} canCreate={canCreateClient(session.user.role)} />
+      <ClientsList
+        role={session.user.role}
+        canCreate={canCreateClient(session.user.role)}
+        isAdmin={session.user.role === 'admin'}
+      />
     </Suspense>
   );
 }

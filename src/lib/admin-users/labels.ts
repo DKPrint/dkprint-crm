@@ -1,5 +1,4 @@
-import type { Role } from '@/lib/auth/permissions';
-import type { PermissionFlags } from '@/lib/auth/permissions';
+import type { PermissionGrantFlags, Role } from '@/lib/auth/permissions';
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Админ',
@@ -9,7 +8,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   courier: 'Курьер',
 };
 
-export const PERMISSION_LABELS: Record<keyof PermissionFlags, string> = {
+export const PERMISSION_LABELS: Record<keyof PermissionGrantFlags, string> = {
   can_access_reports: 'Доступ к отчётам',
   can_edit_price: 'Редактирование цены',
   can_cancel_order: 'Отмена заказа',

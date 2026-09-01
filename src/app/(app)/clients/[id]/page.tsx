@@ -13,6 +13,7 @@ export default async function ClientDetailPage({ params }: Props) {
       clientId={id}
       role={session.user.role}
       canEdit={canCreateClient(session.user.role)}
+      canDelete={session.user.role === 'admin'}
     />
   );
 }

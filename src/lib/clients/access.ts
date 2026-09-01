@@ -22,3 +22,8 @@ export function assertClientPatchAccess(user: SessionUser): void {
 export function canCreateClient(role: Role): boolean {
   return CLIENTS_MUTATE_ROLES.has(role);
 }
+
+/** TZ §7: soft-delete external client — admin only. */
+export function assertClientSoftDeleteAccess(user: SessionUser): void {
+  if (user.role !== 'admin') throw new Error('forbidden');
+}

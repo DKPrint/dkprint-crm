@@ -6,6 +6,7 @@ import {
   type SessionUser,
 } from '@/lib/auth/assertOrderAccess';
 import { listFilesForOrder } from '@/lib/files/queries';
+import { loadOrderListItems } from '@/lib/orders/list-items';
 import { isOrderStatus } from './edit-policy';
 import { loadActiveTransitions } from './load-transitions';
 import { getStatusNeighbors, type OrderStatus } from './status-transitions';
@@ -220,7 +221,15 @@ export async function listOrders(user: SessionUser, filters: OrderListFilters) {
     LIMIT 200
   `) as DbOrder[];
 
-  return rows.map(serializeOrder);
+  if (rows.length === 0) return [];
+
+  const orderIds = rows.map((r) => r.id);
+  const itemsByOrder = await loadOrderListItems(orderIds);
+
+  return rows.map((row) => ({
+    ...serializeOrder(row),
+    items: itemsByOrder.get(row.id) ?? [],
+  }));
 }
 
 export async function listStatusEvents(user: SessionUser, orderId: string) {

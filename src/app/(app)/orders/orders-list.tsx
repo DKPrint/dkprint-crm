@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { OrderItemsSummary } from '@/components/order-items-summary';
 import type { Role } from '@/lib/auth/permissions';
 import { formatMoney2 } from '@/lib/money';
 import { ORDERS_LIST_POLL_MS } from '@/lib/orders/constants';
+import type { OrderListItem } from '@/lib/orders/list-items';
 import { ORDER_STATUSES, statusBadgeClass, statusLabel } from '@/lib/orders/status-labels';
 
 type OrderRow = {
@@ -18,6 +20,7 @@ type OrderRow = {
   ttnChecked: boolean;
   isUrgent: boolean;
   deletedAt: string | null;
+  items: OrderListItem[];
 };
 
 const CAN_CREATE = new Set<Role>(['admin', 'production', 'photo_center']);
@@ -43,6 +46,7 @@ export function OrdersList({ role }: Props) {
   const [ttnBusy, setTtnBusy] = useState<string | null>(null);
   const [urgentBusy, setUrgentBusy] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, true>>({});
 
   const canCreate = CAN_CREATE.has(role);
   const canTtn = CAN_TTN.has(role);
@@ -106,7 +110,16 @@ export function OrdersList({ role }: Props) {
           return;
         }
         setError(null);
-        setOrders(data.orders ?? []);
+        const next = data.orders ?? [];
+        setOrders(next);
+        setExpandedIds((prev) => {
+          const alive = new Set(next.map((o) => o.id));
+          const kept: Record<string, true> = {};
+          for (const id of Object.keys(prev)) {
+            if (alive.has(id)) kept[id] = true;
+          }
+          return kept;
+        });
         setLastRefresh(new Date());
         setLoading(false);
       } catch {
@@ -224,6 +237,17 @@ export function OrdersList({ role }: Props) {
   }
 
   const colCount = 6 + (canTtn ? 1 : 0);
+
+  function toggleExpanded(orderId: string) {
+    setExpandedIds((prev) => {
+      if (prev[orderId]) {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      }
+      return { ...prev, [orderId]: true };
+    });
+  }
 
   return (
     <div>
@@ -359,51 +383,81 @@ export function OrdersList({ role }: Props) {
               </tr>
             ) : (
               orders.map((o) => (
-                <tr key={o.id}>
-                  <td>
-                    <input
-                      className="check-urgent"
-                      type="checkbox"
-                      checked={o.isUrgent}
-                      disabled={
-                        !canEditUrgent ||
-                        urgentBusy === o.id ||
-                        o.deletedAt != null ||
-                        o.status === 'cancelled'
-                      }
-                      aria-label={`Срочно ${o.orderNumber}`}
-                      onChange={(e) => void onUrgentChange(o.id, e.target.checked)}
-                    />
-                  </td>
-                  <td className="mono">
-                    <Link href={`/orders/${o.id}`} className="linkish">
-                      {o.orderNumber}
-                    </Link>
-                  </td>
-                  <td>{o.clientName ?? '—'}</td>
-                  <td>
-                    <span className={statusBadgeClass(o.status)}>{statusLabel(o.status)}</span>
-                    {o.deletedAt ? (
-                      <span className="badge st-cancelled" style={{ marginLeft: 6 }}>
-                        Удалён
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="mono">{o.orderDate}</td>
-                  <td className="mono">{formatMoney2(o.totalAmount)}</td>
-                  {canTtn ? (
-                    <td>
+                <Fragment key={o.id}>
+                  <tr
+                    className={`workshop-row${expandedIds[o.id] ? ' workshop-row-open' : ''}`}
+                    onClick={() => toggleExpanded(o.id)}
+                  >
+                    <td onClick={(e) => e.stopPropagation()}>
                       <input
-                        className="check-ttn"
+                        className="check-urgent"
                         type="checkbox"
-                        checked={o.ttnChecked}
-                        disabled={ttnBusy === o.id}
-                        aria-label={`ТТН ${o.orderNumber}`}
-                        onChange={(e) => void onTtnChange(o.id, e.target.checked)}
+                        checked={o.isUrgent}
+                        disabled={
+                          !canEditUrgent ||
+                          urgentBusy === o.id ||
+                          o.deletedAt != null ||
+                          o.status === 'cancelled'
+                        }
+                        aria-label={`Срочно ${o.orderNumber}`}
+                        onChange={(e) => void onUrgentChange(o.id, e.target.checked)}
                       />
                     </td>
+                    <td className="mono">
+                      <span className="workshop-num-cell">
+                        <button
+                          type="button"
+                          className="workshop-chevron"
+                          aria-expanded={expandedIds[o.id] === true}
+                          aria-label={expandedIds[o.id] ? 'Свернуть состав' : 'Развернуть состав'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpanded(o.id);
+                          }}
+                        >
+                          {expandedIds[o.id] ? '▼' : '▶'}
+                        </button>
+                        <Link
+                          href={`/orders/${o.id}`}
+                          className="linkish"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {o.orderNumber}
+                        </Link>
+                      </span>
+                    </td>
+                    <td>{o.clientName ?? '—'}</td>
+                    <td>
+                      <span className={statusBadgeClass(o.status)}>{statusLabel(o.status)}</span>
+                      {o.deletedAt ? (
+                        <span className="badge st-cancelled" style={{ marginLeft: 6 }}>
+                          Удалён
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="mono">{o.orderDate}</td>
+                    <td className="mono">{formatMoney2(o.totalAmount)}</td>
+                    {canTtn ? (
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          className="check-ttn"
+                          type="checkbox"
+                          checked={o.ttnChecked}
+                          disabled={ttnBusy === o.id}
+                          aria-label={`ТТН ${o.orderNumber}`}
+                          onChange={(e) => void onTtnChange(o.id, e.target.checked)}
+                        />
+                      </td>
+                    ) : null}
+                  </tr>
+                  {expandedIds[o.id] ? (
+                    <tr className="workshop-detail">
+                      <td colSpan={colCount}>
+                        <OrderItemsSummary items={o.items} />
+                      </td>
+                    </tr>
                   ) : null}
-                </tr>
+                </Fragment>
               ))
             )}
           </tbody>

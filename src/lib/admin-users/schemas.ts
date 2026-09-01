@@ -16,6 +16,11 @@ export const permissionOverridesInputSchema = z.object({
   canCancelOrder: z.boolean().optional(),
   canSoftDeleteOrder: z.boolean().optional(),
   canManageSla: z.boolean().optional(),
+  denyAccessReports: z.boolean().optional(),
+  denyEditPrice: z.boolean().optional(),
+  denyCancelOrder: z.boolean().optional(),
+  denySoftDeleteOrder: z.boolean().optional(),
+  denyManageSla: z.boolean().optional(),
 });
 
 export const createUserSchema = z

@@ -8,9 +8,11 @@ import { editablePermissionKeys } from '@/lib/admin-users/permissions';
 import { ADMIN_USER_ROLES, PERMISSION_LABELS, ROLE_LABELS } from '@/lib/admin-users/labels';
 import {
   can,
+  DENY_FLAG_BY_GRANT,
   emptyPermissionFlags,
   type Action,
   type PermissionFlags,
+  type PermissionGrantFlags,
   type Role,
 } from '@/lib/auth/permissions';
 
@@ -20,6 +22,11 @@ type PermissionsApi = {
   canCancelOrder: boolean;
   canSoftDeleteOrder: boolean;
   canManageSla: boolean;
+  denyAccessReports: boolean;
+  denyEditPrice: boolean;
+  denyCancelOrder: boolean;
+  denySoftDeleteOrder: boolean;
+  denyManageSla: boolean;
 };
 
 type Props = {
@@ -42,6 +49,11 @@ function apiToFlags(p: PermissionsApi): PermissionFlags {
     can_cancel_order: p.canCancelOrder,
     can_soft_delete_order: p.canSoftDeleteOrder,
     can_manage_sla: p.canManageSla,
+    deny_access_reports: p.denyAccessReports,
+    deny_edit_price: p.denyEditPrice,
+    deny_cancel_order: p.denyCancelOrder,
+    deny_soft_delete_order: p.denySoftDeleteOrder,
+    deny_manage_sla: p.denyManageSla,
   };
 }
 
@@ -52,10 +64,15 @@ function flagsToApi(p: PermissionFlags): PermissionsApi {
     canCancelOrder: p.can_cancel_order,
     canSoftDeleteOrder: p.can_soft_delete_order,
     canManageSla: p.can_manage_sla,
+    denyAccessReports: p.deny_access_reports,
+    denyEditPrice: p.deny_edit_price,
+    denyCancelOrder: p.deny_cancel_order,
+    denySoftDeleteOrder: p.deny_soft_delete_order,
+    denyManageSla: p.deny_manage_sla,
   };
 }
 
-const PERMISSION_FLAG_ACTION: Record<keyof PermissionFlags, Action> = {
+const PERMISSION_FLAG_ACTION: Record<keyof PermissionGrantFlags, Action> = {
   can_access_reports: 'access_reports',
   can_edit_price: 'edit_price',
   can_cancel_order: 'cancel_order',
@@ -72,15 +89,7 @@ export function UserForm({ mode, userId, initial }: Props) {
   const [clientName, setClientName] = useState(initial?.clientName ?? '');
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [permissions, setPermissions] = useState<PermissionFlags>(
-    initial
-      ? apiToFlags(initial.permissions)
-      : {
-          can_access_reports: false,
-          can_edit_price: false,
-          can_cancel_order: false,
-          can_soft_delete_order: false,
-          can_manage_sla: false,
-        },
+    initial ? apiToFlags(initial.permissions) : { ...emptyPermissionFlags },
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,8 +107,22 @@ export function UserForm({ mode, userId, initial }: Props) {
     }
   }
 
-  function togglePerm(key: keyof PermissionFlags) {
-    setPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  function setEffectivePerm(key: keyof PermissionGrantFlags, wantOn: boolean) {
+    const action = PERMISSION_FLAG_ACTION[key];
+    const roleGranted = can(role, action, emptyPermissionFlags);
+    const denyKey = DENY_FLAG_BY_GRANT[key];
+    setPermissions((prev) => {
+      const next = { ...prev };
+      if (wantOn) {
+        next[denyKey] = false;
+        if (!roleGranted) next[key] = true;
+      } else if (roleGranted) {
+        next[denyKey] = true;
+      } else {
+        next[key] = false;
+      }
+      return next;
+    });
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -261,22 +284,24 @@ export function UserForm({ mode, userId, initial }: Props) {
         <fieldset className="permission-flags-list">
           <legend style={{ fontWeight: 600, marginBottom: 8 }}>Флаги прав</legend>
           {permKeys.map((key) => {
-            const action = PERMISSION_FLAG_ACTION[key];
+            const grantKey = key as keyof PermissionGrantFlags;
+            const action = PERMISSION_FLAG_ACTION[grantKey];
             const effective = can(role, action, permissions);
             const roleGranted = can(role, action, emptyPermissionFlags);
+            const denied = permissions[DENY_FLAG_BY_GRANT[grantKey]];
             return (
               <div key={key} className="permission-flag-row">
                 <input
                   type="checkbox"
                   checked={effective}
-                  disabled={roleGranted}
-                  onChange={() => {
-                    if (!roleGranted) togglePerm(key);
-                  }}
+                  onChange={(e) => setEffectivePerm(grantKey, e.target.checked)}
                 />
                 <span>
                   {PERMISSION_LABELS[key]}
-                  {roleGranted && effective ? <span className="muted"> (от роли)</span> : null}
+                  {denied ? <span className="muted"> — снято администратором</span> : null}
+                  {!denied && roleGranted && effective ? (
+                    <span className="muted"> (от роли)</span>
+                  ) : null}
                 </span>
               </div>
             );

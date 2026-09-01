@@ -15,7 +15,7 @@ export async function GET(request: Request, context: RouteContext) {
     const { searchParams } = new URL(request.url);
     const includeDeleted = searchParams.get('includeDeleted') === 'true';
 
-    const client = await getClientById(user, id);
+    const client = await getClientById(user, id, { includeDeleted });
     const orders = await listClientOrders(user, id, { includeDeleted });
     return jsonOk({ client, orders });
   } catch (err) {

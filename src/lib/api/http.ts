@@ -59,6 +59,8 @@ export function jsonFromError(err: unknown): NextResponse {
       return jsonError(409, code, 'Email уже занят');
     case 'client_name_required':
       return jsonError(400, code, 'Укажите название точки для photo_center');
+    case 'cannot_delete_photo_center_client':
+      return jsonError(422, code, 'Нельзя удалить точку сети (photo_center)');
     case 'cannot_delete_system_default':
       return jsonError(400, code, 'Нельзя удалить системную цель SLA по умолчанию');
     case 'reason_required':

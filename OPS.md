@@ -20,23 +20,37 @@ Canonical product/tech spec: `docs/DKPrint-CRM-TZ-v1.md` (v1.6). Agent handoff: 
 
 ## Source of truth map
 
-| Data                               | Owner (SoT)                                     | Notes                                                               |
-| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------- |
-| Users / roles / permission flags   | CRM DB (`users`, `permission_overrides`)        | Admin creates users; no public signup                               |
-| Clients (photo centers)            | CRM DB (`clients`)                              |                                                                     |
-| Orders + status                    | CRM DB (`orders`) + `status_transitions`        | Status only via transitions (+ admin jump)                          |
-| Prices / line totals / order total | CRM + `lib/money`                               | Server `formatMoney2` / recalc; catalog line price from DB snapshot |
-| Order item `name`, qty, tech       | CRM (`order_items`)                             |                                                                     |
-| Files / R2 keys                    | CRM (`files`) + R2                              | Key: `dkprint/{R2_ENV}/orders/{orderNumber}/items/...`              |
-| Audit / status events              | CRM (`order_audit_logs`, `order_status_events`) | Audit UI/API: admin \| production only                              |
-| Telegram live card                 | CRM `orders.telegram_message_id` + Bot API      | Outbound only; chat = `TELEGRAM_CHAT_ID` (рабочая группа)           |
-| Telegram dev/ops alerts            | Bot API + `TELEGRAM_DEV_CHAT_ID`                | One-shot messages; CI/cron/infra — **не** карточки заказов          |
-| Web Push subscriptions             | CRM + VAPID                                     | Event-driven; not TG                                                |
-| Categories / SLA defaults          | CRM admin                                       | Prefer deactivate over hard-delete                                  |
-| Product catalog / list prices      | CRM `catalog_*` (§13.1)                         | Admin import/export; order lines snapshot price; not browser SoT    |
-| Consumables BOM                    | `catalog_product_consumables`                   | Schema + minimal admin UI in v1; warehouse write-off = roadmap +2   |
+| Data                               | Owner (SoT)                                     | Notes                                                                |
+| ---------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- |
+| Users / roles / permission flags   | CRM DB (`users`, `permission_overrides`)        | Admin creates users; no public signup                                |
+| Clients (photo centers)            | CRM DB (`clients`)                              | External clients: admin soft-delete; photo_center rows not deletable |
+| Orders + status                    | CRM DB (`orders`) + `status_transitions`        | Status only via transitions (+ admin jump)                           |
+| Prices / line totals / order total | CRM + `lib/money`                               | Server `formatMoney2` / recalc; catalog line price from DB snapshot  |
+| Order item `name`, qty, tech       | CRM (`order_items`)                             |                                                                      |
+| Files / R2 keys                    | CRM (`files`) + R2                              | Key: `dkprint/{R2_ENV}/orders/{orderNumber}/items/...`               |
+| Audit / status events              | CRM (`order_audit_logs`, `order_status_events`) | Audit UI/API: admin \| production only                               |
+| Telegram live card                 | CRM `orders.telegram_message_id` + Bot API      | Outbound only; chat = `TELEGRAM_CHAT_ID` (рабочая группа)            |
+| Telegram dev/ops alerts            | Bot API + `TELEGRAM_DEV_CHAT_ID`                | One-shot messages; CI/cron/infra — **не** карточки заказов           |
+| Web Push subscriptions             | CRM + VAPID                                     | Event-driven; not TG                                                 |
+| Categories / SLA defaults          | CRM admin                                       | Prefer deactivate over hard-delete                                   |
+| Product catalog / list prices      | CRM `catalog_*` (§13.1)                         | Admin import/export; order lines snapshot price; not browser SoT     |
+| Consumables BOM                    | `catalog_product_consumables`                   | Schema + minimal admin UI in v1; warehouse write-off = roadmap +2    |
 
 Do **not** treat client-submitted floats as money truth without going through `lib/money`.
+
+### Client soft-delete (§7)
+
+- **Who:** admin only (`POST /api/clients/[id]/soft-delete` with `{ comment }`).
+- **Blocked:** `clients.user_id IS NOT NULL` (photo_center / точка сети) → 422.
+- **Effect:** sets `deleted_at`, `deleted_by_user_id`, `delete_comment`; row hidden from list/create-order by default.
+- **Orders:** existing orders stay linked; not auto-cancelled.
+- **Admin:** `includeDeleted=1` on `GET /api/clients` and client card (same pattern as orders).
+
+### Permission denials (§3.2)
+
+- `permission_overrides.deny_*` mirror grant flags; checked in `can()` after hard role blocks.
+- Admin user form: uncheck role-granted right → sets `deny_*=true` (label «снято администратором»).
+- Designer cancel/soft-delete and photo_center/courier reports remain hard-denied regardless of deny flags.
 
 ### Catalog import/export xlsx (§13.1)
 

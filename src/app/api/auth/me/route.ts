@@ -23,6 +23,11 @@ export async function GET() {
       can_cancel_order: flags.can_cancel_order,
       can_soft_delete_order: flags.can_soft_delete_order,
       can_manage_sla: flags.can_manage_sla,
+      deny_access_reports: flags.deny_access_reports,
+      deny_edit_price: flags.deny_edit_price,
+      deny_cancel_order: flags.deny_cancel_order,
+      deny_soft_delete_order: flags.deny_soft_delete_order,
+      deny_manage_sla: flags.deny_manage_sla,
     },
   });
 }

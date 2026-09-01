@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { can } from '@/lib/auth/permissions';
+import { can, emptyPermissionFlags } from '@/lib/auth/permissions';
 import {
   canTransition,
   getStatusNeighbors,
@@ -10,6 +10,7 @@ import {
 } from './status-transitions';
 
 const allFlagsOn = {
+  ...emptyPermissionFlags,
   can_access_reports: true,
   can_edit_price: true,
   can_cancel_order: true,

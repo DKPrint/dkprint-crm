@@ -26,6 +26,11 @@ type DbUserRow = {
   can_cancel_order: boolean | null;
   can_soft_delete_order: boolean | null;
   can_manage_sla: boolean | null;
+  deny_access_reports: boolean | null;
+  deny_edit_price: boolean | null;
+  deny_cancel_order: boolean | null;
+  deny_soft_delete_order: boolean | null;
+  deny_manage_sla: boolean | null;
 };
 
 export type AdminUser = {
@@ -48,6 +53,11 @@ function rowToFlags(row: DbUserRow): PermissionFlags {
     can_cancel_order: row.can_cancel_order === true,
     can_soft_delete_order: row.can_soft_delete_order === true,
     can_manage_sla: row.can_manage_sla === true,
+    deny_access_reports: row.deny_access_reports === true,
+    deny_edit_price: row.deny_edit_price === true,
+    deny_cancel_order: row.deny_cancel_order === true,
+    deny_soft_delete_order: row.deny_soft_delete_order === true,
+    deny_manage_sla: row.deny_manage_sla === true,
   };
 }
 
@@ -81,7 +91,12 @@ const userSelectSql = sql`
   po.can_edit_price,
   po.can_cancel_order,
   po.can_soft_delete_order,
-  po.can_manage_sla
+  po.can_manage_sla,
+  po.deny_access_reports,
+  po.deny_edit_price,
+  po.deny_cancel_order,
+  po.deny_soft_delete_order,
+  po.deny_manage_sla
 `;
 
 async function countOtherActiveAdmins(excludeUserId: string): Promise<number> {
@@ -159,6 +174,11 @@ async function upsertPermissionOverrides(userId: string, role: Role, flags: Perm
       can_cancel_order,
       can_soft_delete_order,
       can_manage_sla,
+      deny_access_reports,
+      deny_edit_price,
+      deny_cancel_order,
+      deny_soft_delete_order,
+      deny_manage_sla,
       updated_at
     )
     VALUES (
@@ -168,6 +188,11 @@ async function upsertPermissionOverrides(userId: string, role: Role, flags: Perm
       ${normalized.can_cancel_order},
       ${normalized.can_soft_delete_order},
       ${normalized.can_manage_sla},
+      ${normalized.deny_access_reports},
+      ${normalized.deny_edit_price},
+      ${normalized.deny_cancel_order},
+      ${normalized.deny_soft_delete_order},
+      ${normalized.deny_manage_sla},
       now()
     )
     ON CONFLICT (user_id) DO UPDATE SET
@@ -176,6 +201,11 @@ async function upsertPermissionOverrides(userId: string, role: Role, flags: Perm
       can_cancel_order = EXCLUDED.can_cancel_order,
       can_soft_delete_order = EXCLUDED.can_soft_delete_order,
       can_manage_sla = EXCLUDED.can_manage_sla,
+      deny_access_reports = EXCLUDED.deny_access_reports,
+      deny_edit_price = EXCLUDED.deny_edit_price,
+      deny_cancel_order = EXCLUDED.deny_cancel_order,
+      deny_soft_delete_order = EXCLUDED.deny_soft_delete_order,
+      deny_manage_sla = EXCLUDED.deny_manage_sla,
       updated_at = now()
   `;
 }
@@ -205,7 +235,12 @@ async function insertPhotoCenterUser(
         can_edit_price,
         can_cancel_order,
         can_soft_delete_order,
-        can_manage_sla
+        can_manage_sla,
+        deny_access_reports,
+        deny_edit_price,
+        deny_cancel_order,
+        deny_soft_delete_order,
+        deny_manage_sla
       )
       SELECT
         new_user.id,
@@ -213,7 +248,12 @@ async function insertPhotoCenterUser(
         ${flags.can_edit_price},
         ${flags.can_cancel_order},
         ${flags.can_soft_delete_order},
-        ${flags.can_manage_sla}
+        ${flags.can_manage_sla},
+        ${flags.deny_access_reports},
+        ${flags.deny_edit_price},
+        ${flags.deny_cancel_order},
+        ${flags.deny_soft_delete_order},
+        ${flags.deny_manage_sla}
       FROM new_user
       RETURNING user_id
     ),
@@ -260,7 +300,12 @@ async function insertStandardUser(
         can_edit_price,
         can_cancel_order,
         can_soft_delete_order,
-        can_manage_sla
+        can_manage_sla,
+        deny_access_reports,
+        deny_edit_price,
+        deny_cancel_order,
+        deny_soft_delete_order,
+        deny_manage_sla
       )
       SELECT
         new_user.id,
@@ -268,7 +313,12 @@ async function insertStandardUser(
         ${flags.can_edit_price},
         ${flags.can_cancel_order},
         ${flags.can_soft_delete_order},
-        ${flags.can_manage_sla}
+        ${flags.can_manage_sla},
+        ${flags.deny_access_reports},
+        ${flags.deny_edit_price},
+        ${flags.deny_cancel_order},
+        ${flags.deny_soft_delete_order},
+        ${flags.deny_manage_sla}
       FROM new_user
       RETURNING user_id
     )

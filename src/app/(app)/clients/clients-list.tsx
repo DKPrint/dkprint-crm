@@ -12,18 +12,21 @@ type ClientRow = {
   notes: string | null;
   isPhotoCenter: boolean;
   linkedUserEmail: string | null;
+  deletedAt: string | null;
 };
 
 type Props = {
   role: Role;
   canCreate: boolean;
+  isAdmin: boolean;
 };
 
-export function ClientsList({ role, canCreate }: Props) {
+export function ClientsList({ role, canCreate, isAdmin }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get('q') ?? '';
+  const includeDeleted = searchParams.get('includeDeleted') === 'true';
 
   const [qDraft, setQDraft] = useState(q);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -35,15 +38,24 @@ export function ClientsList({ role, canCreate }: Props) {
   const [createNotes, setCreateNotes] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
 
-  const replaceQ = useCallback(
-    (nextQ: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (nextQ.trim()) params.set('q', nextQ.trim());
-      else params.delete('q');
-      const qs = params.toString();
+  const replaceParams = useCallback(
+    (mutate: (p: URLSearchParams) => void) => {
+      const next = new URLSearchParams(searchParams.toString());
+      mutate(next);
+      const qs = next.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
     },
     [pathname, router, searchParams],
+  );
+
+  const replaceQ = useCallback(
+    (nextQ: string) => {
+      replaceParams((p) => {
+        if (nextQ.trim()) p.set('q', nextQ.trim());
+        else p.delete('q');
+      });
+    },
+    [replaceParams],
   );
 
   useEffect(() => {
@@ -58,6 +70,7 @@ export function ClientsList({ role, canCreate }: Props) {
     async (signal?: AbortSignal) => {
       const params = new URLSearchParams();
       if (q.trim()) params.set('q', q.trim());
+      if (isAdmin && includeDeleted) params.set('includeDeleted', 'true');
       try {
         const res = await fetch(`/api/clients?${params.toString()}`, {
           credentials: 'same-origin',
@@ -84,7 +97,7 @@ export function ClientsList({ role, canCreate }: Props) {
         setLoading(false);
       }
     },
-    [q],
+    [q, includeDeleted, isAdmin],
   );
 
   useEffect(() => {
@@ -193,6 +206,23 @@ export function ClientsList({ role, canCreate }: Props) {
           />
         </label>
 
+        {isAdmin ? (
+          <label className="muted" style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                replaceParams((p) => {
+                  if (checked) p.set('includeDeleted', 'true');
+                  else p.delete('includeDeleted');
+                });
+              }}
+            />
+            Показать удалённых
+          </label>
+        ) : null}
+
         {loading ? <p className="muted">Загрузка…</p> : null}
 
         {!loading && clients.length === 0 ? <p className="muted">Клиенты не найдены</p> : null}
@@ -209,11 +239,16 @@ export function ClientsList({ role, canCreate }: Props) {
               </thead>
               <tbody>
                 {clients.map((c) => (
-                  <tr key={c.id}>
+                  <tr key={c.id} className={c.deletedAt ? 'muted' : undefined}>
                     <td>
                       <Link href={`/clients/${c.id}`} className="linkish">
                         {c.name}
                       </Link>
+                      {c.deletedAt ? (
+                        <span className="badge st-cancelled" style={{ marginLeft: 6 }}>
+                          Удалён
+                        </span>
+                      ) : null}
                     </td>
                     <td>{c.isPhotoCenter ? 'Точка сети' : 'Внешний'}</td>
                     <td className="muted">

@@ -36,7 +36,12 @@ export async function requireAuth(): Promise<{
       po.can_edit_price,
       po.can_cancel_order,
       po.can_soft_delete_order,
-      po.can_manage_sla
+      po.can_manage_sla,
+      po.deny_access_reports,
+      po.deny_edit_price,
+      po.deny_cancel_order,
+      po.deny_soft_delete_order,
+      po.deny_manage_sla
     FROM users u
     LEFT JOIN permission_overrides po ON po.user_id = u.id
     WHERE u.id = ${user.id}
@@ -55,6 +60,11 @@ export async function requireAuth(): Promise<{
         can_cancel_order: boolean | null;
         can_soft_delete_order: boolean | null;
         can_manage_sla: boolean | null;
+        deny_access_reports: boolean | null;
+        deny_edit_price: boolean | null;
+        deny_cancel_order: boolean | null;
+        deny_soft_delete_order: boolean | null;
+        deny_manage_sla: boolean | null;
       }
     | undefined;
 
@@ -76,6 +86,11 @@ export async function requireAuth(): Promise<{
       can_cancel_order: row.can_cancel_order === true,
       can_soft_delete_order: row.can_soft_delete_order === true,
       can_manage_sla: row.can_manage_sla === true,
+      deny_access_reports: row.deny_access_reports === true,
+      deny_edit_price: row.deny_edit_price === true,
+      deny_cancel_order: row.deny_cancel_order === true,
+      deny_soft_delete_order: row.deny_soft_delete_order === true,
+      deny_manage_sla: row.deny_manage_sla === true,
     },
   };
 }
