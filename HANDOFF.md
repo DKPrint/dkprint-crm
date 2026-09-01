@@ -1,48 +1,63 @@
 # HANDOFF — DKPrint CRM
 
-Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6**). Ops: `@OPS.md`.
+Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6**). Ops: `@OPS.md`. QA: `@docs/QA-22-acceptance-report.md`.
 
-## Done (shipped on main)
+## Phase status (§21 / §20.11)
+
+| Phase  | Deliverable                                                                | Status                                                          |
+| ------ | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **0**  | Repo, Auth.js, Neon, migrations, seed, CI, `lib/money` / `lib/auth`, rules | **Done**                                                        |
+| **1**  | Orders CRUD, status engine, `assertOrderAccess`, unit §20.5                | **Done**                                                        |
+| **2**  | R2 presign/confirm/download                                                | **Done**                                                        |
+| **3**  | UI orders (+ name, urgent, polling, audit)                                 | **Done**                                                        |
+| **4**  | Workshop queue (+ composition / layout flag)                               | **Done**                                                        |
+| **5**  | Comments; Web Push; Telegram live card                                     | **Done**                                                        |
+| **5+** | OPS/HANDOFF drafts; cron SLA endpoint                                      | **Done**                                                        |
+| **6**  | Clients + Tasks (API + UI)                                                 | **Done**                                                        |
+| **7**  | Admin SLA UI + cron hardening                                              | **Done**                                                        |
+| **8**  | Reports KPI + export CSV/xlsx + print                                      | **Done**                                                        |
+| **9**  | Admin users CRUD + permission flags                                        | **Done**                                                        |
+| **9b** | Catalog §13.1 (schema, admin, import/export, order form, BOM stub)         | **Done**                                                        |
+| **10** | QA §22 + OPS/HANDOFF final                                                 | **In progress** (code QA doc done; manual 5-role smoke pending) |
+
+### Stub / deferred (not v1 app scope)
+
+| Item                             | Status                                   |
+| -------------------------------- | ---------------------------------------- |
+| Warehouse write-off from BOM     | **Roadmap +2** (tables exist; no UI/API) |
+| Public calculator / site pricing | **Out of v1**                            |
+| Legacy flat `categories` admin   | **Redirect** → `/admin/catalog`          |
+| Catalog **prod** import from 1С  | **Deferred** — see §Catalog below        |
+| E2E Playwright all roles         | **Deferred** (§20.8)                     |
+
+## Shipped highlights (main)
 
 - Auth.js v5 Credentials + JWT; `requireAuth` reloads user/`is_active`/flags from DB
-- Orders CRUD isolation (`assertOrderAccess` / `ordersVisibleWhere`)
-- Status graph + cancel / soft-delete / admin jump
-- Money via `lib/money` + NUMERIC(12,2)
-- R2 presigned upload/download (key uses `orderNumber`)
-- Comments + problematic layout → Web Push + TG card edit
-- Telegram **live card** (one message / order; sync on create, status, comment, urgent, SLA — **not** on item CRUD)
-- Workshop compact table + composition lines + `hasLayout`
-- Orders list poll 30s + urgent checkbox
-- Item field `name` (migration 004)
-- Audit UI/API: admin \| production only; readable labels; no-op patch skip
-- Cron `/api/cron/sla-overdue` + OPS/HANDOFF drafts
-- Cursor rules: DKPrint invariants + SoT / contracts / auth-webhooks + pre-push CI
-- **9b.1 catalog schema** (`migrations/005_catalog.sql` + greenfield in `001_init.sql`): `catalog_categories` / `catalog_products` / BOM / `catalog_import_runs`; `order_items.catalog_product_id`, `is_manual`; `category_id` nullable
-- **9b.2 admin catalog** — `/admin/catalog` + `/api/admin/catalog/categories|products` (admin-only); tree + products + price edit; BOM not in product list
-- **9b.3 import/export** — `POST /api/admin/catalog/import` (multipart xlsx + replacePrices), `GET /api/admin/catalog/export`; match by `external_code`; `catalog_import_runs` log; unit tests for import rules
-- **9b.4 catalog read + order form** — `GET /api/catalog/*` (admin|production|photo_center); `/orders/new` + add item cascading; manual line; server price snapshot; unit tests ignore client unitPrice on catalog lines
-- **9b.5 BOM admin** — `GET/POST/PATCH/DELETE /api/admin/catalog/products/:id/consumables`; minimal BOM UI on `/admin/catalog`; no warehouse write-off; `/api/catalog/*` still BOM-free
+- Orders: isolation, status graph, cancel / soft-delete / admin jump, money `lib/money`
+- R2 presigned upload/download; key `dkprint/{R2_ENV}/orders/{orderNumber}/…`
+- Workshop, comments, Web Push, Telegram live card (not on item CRUD)
+- Clients, tasks, reports (+ export), admin users, admin SLA, admin catalog (import/export/BOM stub)
+- Cron `/api/cron/sla-overdue`; Vercel Hobby schedule `0 6 * * *` (see OPS)
+- Prod fix: catalog order lines `category_id` NULL; hydration #418; Hobby cron
 
-## Next (priority)
+## Catalog — staging vs prod import
 
-1. **Фаза 6** — Clients + Tasks (pages are stubs today)
-2. **Фаза 9** — Admin users UI
-3. **Фаза 7** — Admin SLA UI (cron API already exists)
-4. **Фаза 8** — Reports + export
-5. **Фаза 10** — Full §22 acceptance
+**Staging / smoke:** use **stub** catalog (manual admin or small test xlsx). Empty DB OK with ops-inserted smoke product (see Neon smoke below).
 
-## Not done / stubs (do not claim complete)
+**Prod 1С import — deferred until:**
 
-- `/tasks`, `/clients`, `/reports`, `/admin/users`, `/admin/categories`, `/admin/sla` — placeholder `<h1>` only
-- Product catalog UI/API (§13.1) — admin CRUD+import/export + order-form catalog read done
-- Warehouse write-off — roadmap +2 (BOM tables exist)
-- Public calculator / site dual pricing — out of v1
+1. Real production xlsx sample available
+2. **Leaf-policy** edge-case fixed (products on non-leaf when root has children — documented in OPS)
+3. Smoke: import → export → re-import with ☑ replace prices
+4. Reports «По категориям» may need join via `catalog_product_id` (catalog lines store `category_id` NULL)
 
-## Catalog — deferred (not blocking staging)
+§22.8 code gate: **pass** for staging; prod import = **blocked** on checklist above.
 
-- **Final category tree from 1С is not ready** — use stub categories only for now (simple leaf or root+sub test data).
-- **Import leaf-policy PR** (skip/fail rows without `subcategory_*` when root already has children; avoid products stuck on non-leaf) — **defer until a real production xlsx sample** exists. §22.8 catalog gate is OK for staging without it.
-- Before prod catalog import: fix that edge-case, lock import column mapping in OPS, smoke import → export → re-import with ☑ replace prices.
+## QA §22
+
+Static audit + **169** unit tests: `@docs/QA-22-acceptance-report.md` (2026-09-01).
+
+- **56 pass** / **1 fail** (this HANDOFF was stale — fixed in Phase 10) / **3 blocked** (manual 5-role smoke, order-number DB race optional, prod catalog import)
 
 ## Do not
 
@@ -53,30 +68,25 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.6*
 - Call `syncOrderTelegramCard` from item add/patch/delete/price
 - Trust UI-only hiding as authorization
 - Barrel-re-export inside `"use server"` files
-- Ship catalog as a separate microservice in v1 (module in same app)
-- Store full catalog+prices in browser as SoT; always resolve catalog line price on server
+- Ship catalog as separate microservice in v1
 
 ## Before push
 
 `npm run typecheck && npm run lint && npm run format:check && npm test`
 
-## Neon checklist
+## Neon (summary — detail in OPS.md)
 
-Apply in order if the DB was created from an older `001` (or never got later files):
+Apply in order on existing DBs; greenfield from current `001_init.sql` + `seed.sql` may skip `002`–`005` if columns already present.
 
-1. `migrations/002_orders_telegram_message_id.sql`
-2. `migrations/003_orders_is_urgent.sql`
-3. `migrations/004_order_items_name.sql`
-4. **`migrations/005_catalog.sql`** — `catalog_*` + `order_items.catalog_product_id` / `is_manual` + nullable `category_id`
+1. `001_init.sql` → `seed.sql` → `002` … `005_catalog.sql` → `npm run seed:admin`
+2. Optional demo roster: `CONFIRM_SEED_DEMO=yes npm run seed:demo`
+3. Prod **must** have `005` before catalog-line orders (`catalog_product_id`, `is_manual`, nullable `category_id`)
 
-Fresh greenfield: run current `001_init.sql` (includes catalog) + `seed.sql`, then skip `002`–`005` only if those columns/tables already exist.
+**Verified on Neon (2026-09-01):** `002`–`005` applied.
 
-**Verified on Neon (2026-09-01):** `002`–`005` **applied** — `telegram_message_id`, `is_urgent`, `order_items.name`, `catalog_*` tables, `catalog_product_id` / `is_manual`, `category_id` nullable.
+Post-`005` smoke:
 
-Smoke after `005`:
-
-- `\d catalog_products`, `\d order_items` — OK on Neon.
-- **Login (admin):** bcrypt + HTTP Auth.js session → `/api/orders` 200.
-- **Manual line order:** OK (`DK-260901-1` smoke).
-- **Catalog line order:** fixed in app — catalog lines store `category_id` NULL (`catalog_product_id` is SoT); legacy FK on `categories(id)` unchanged. Prod **must** have `005` applied (`catalog_product_id`, `is_manual`, nullable `category_id`) or POST `/api/orders` 500s on missing columns.
-- Catalog was empty; ops stub inserted: category `Smoke Print` / product `Smoke Визитки` (12.50) for read/snapshot smoke only.
+- `\d catalog_products`, `\d order_items`
+- Login admin → `GET /api/orders` 200
+- POST order: manual line + catalog line (catalog line: `category_id` NULL, `catalog_product_id` set)
+- Catalog stub OK for read/snapshot tests

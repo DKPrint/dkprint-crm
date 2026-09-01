@@ -5,7 +5,7 @@ globs: **/*
 # Project Context
 
 ## Overview
-DKPrint CRM — operational CRM for a print shop / photo-center network. Spec **v1.6**. Core orders, files (R2), workshop, comments, Telegram live cards, and audit gating are shipped; **catalog (9b)**, **tasks**, **clients**, **reports**, **admin users** remain next/stubs.
+DKPrint CRM — operational CRM for a print shop / photo-center network. Spec **v1.6**. Phases **0–9b Done** on main; **Phase 10** (QA §22 + OPS/HANDOFF final) in progress. See `HANDOFF.md` phase table.
 
 ## Tech Stack
 - TypeScript (strict), Next.js 16 App Router, React 19
@@ -19,9 +19,10 @@ DKPrint CRM — operational CRM for a print shop / photo-center network. Spec **
 src/app/                 # App Router pages + API routes
 src/auth/                # Auth.js config
 src/lib/                 # Domain (auth, money, orders, notifications, workshop, files)
-migrations/              # 001_init … 004_order_items_name + seed.sql
+migrations/              # 001_init … 005_catalog.sql + seed.sql
 docs/DKPrint-CRM-TZ-v1.md
-OPS.md / HANDOFF.md      # SoT map, smoke, status for agents
+docs/QA-22-acceptance-report.md
+OPS.md / HANDOFF.md      # SoT map, smoke, phase status
 design-system/dkprint-crm/
 .cursor/rules/           # invariants + platform SoT/contracts/auth + pre-push
 ```
