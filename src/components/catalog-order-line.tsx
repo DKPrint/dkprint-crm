@@ -290,7 +290,7 @@ export function CatalogOrderLineFields({ value, onChange, disabled }: Props) {
         </>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+      <div className="form-grid-3">
         <label className="field">
           Кол-во
           <input

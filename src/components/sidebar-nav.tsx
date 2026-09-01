@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { isNavItemActive } from '@/components/nav-active';
 import type { NavItem } from '@/lib/auth/nav';
 
-export function SidebarNav({ items }: { items: NavItem[] }) {
+export function SidebarNav({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -15,6 +15,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
           key={item.href}
           href={item.href}
           className={`nav-btn${isNavItemActive(pathname, item.href) ? ' is-active' : ''}`}
+          onClick={onNavigate}
         >
           {item.label}
         </Link>

@@ -1,7 +1,5 @@
-import Link from 'next/link';
 import { signOut } from '@/auth';
-import { PushSubscribeBanner } from '@/components/push-subscribe-banner';
-import { SidebarNav } from '@/components/sidebar-nav';
+import { MobileNavShell } from '@/components/mobile-nav-shell';
 import type { NavItem } from '@/lib/auth/nav';
 import type { Role } from '@/lib/auth/permissions';
 
@@ -13,41 +11,22 @@ type AppShellProps = {
 };
 
 export function AppShell({ email, role, navItems, children }: AppShellProps) {
+  const signOutForm = (
+    <form
+      action={async () => {
+        'use server';
+        await signOut({ redirectTo: '/login' });
+      }}
+    >
+      <button type="submit" className="btn btn-ghost">
+        Выйти
+      </button>
+    </form>
+  );
+
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <Link href="/orders" className="brand">
-          <span className="brand-mark">DK</span>
-          <span>
-            <span className="brand-name">DKPrint CRM</span>
-            <span className="brand-sub">операционный CRM</span>
-          </span>
-        </Link>
-        <SidebarNav items={navItems} />
-      </aside>
-
-      <header className="header">
-        <p className="header-title">
-          {email} · {role}
-        </p>
-        <div className="header-right">
-          <form
-            action={async () => {
-              'use server';
-              await signOut({ redirectTo: '/login' });
-            }}
-          >
-            <button type="submit" className="btn btn-ghost">
-              Выйти
-            </button>
-          </form>
-        </div>
-      </header>
-
-      <main className="main">
-        <PushSubscribeBanner />
-        {children}
-      </main>
-    </div>
+    <MobileNavShell email={email} role={role} navItems={navItems} signOutForm={signOutForm}>
+      {children}
+    </MobileNavShell>
   );
 }

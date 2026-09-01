@@ -117,7 +117,7 @@ export function TaskForm({
         </select>
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="form-grid-2">
         <label className="field">
           Приоритет
           <select
