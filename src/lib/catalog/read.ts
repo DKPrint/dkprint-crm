@@ -2,6 +2,7 @@ import { sql } from '@/lib/db';
 import { toApiNumber } from '@/lib/money';
 import type { SessionUser } from '@/lib/auth/assertOrderAccess';
 import { assertCatalogRead } from './access';
+import { formatCatalogCategoryPath } from './category-path';
 
 type DbCategory = {
   id: string;
@@ -127,20 +128,40 @@ export async function getCatalogReadProduct(
 export async function loadCatalogProductSnapshot(productId: string): Promise<{
   id: string;
   categoryId: string;
+  catalogCategoryId: string;
+  catalogCategoryPath: string;
   name: string;
   unitPrice: string;
 }> {
   const rows = (await sql`
-    SELECT id, category_id, name, unit_price
-    FROM catalog_products
-    WHERE id = ${productId}::uuid AND is_active = true
+    SELECT
+      cp.id,
+      cp.category_id,
+      cp.name,
+      cp.unit_price,
+      cc.name AS category_name,
+      parent.name AS parent_name
+    FROM catalog_products cp
+    JOIN catalog_categories cc ON cc.id = cp.category_id
+    LEFT JOIN catalog_categories parent ON parent.id = cc.parent_id
+    WHERE cp.id = ${productId}::uuid AND cp.is_active = true
     LIMIT 1
-  `) as DbProduct[];
+  `) as Array<{
+    id: string;
+    category_id: string;
+    name: string;
+    unit_price: string;
+    category_name: string;
+    parent_name: string | null;
+  }>;
   const row = rows[0];
   if (!row) throw new Error('product_not_found');
+  const catalogCategoryPath = formatCatalogCategoryPath(row.category_name, row.parent_name);
   return {
     id: row.id,
     categoryId: row.category_id,
+    catalogCategoryId: row.category_id,
+    catalogCategoryPath,
     name: row.name,
     unitPrice: String(row.unit_price),
   };

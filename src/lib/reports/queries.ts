@@ -131,8 +131,9 @@ export async function reportByCategory(period: ReportPeriod): Promise<{
 }> {
   const rows = (await sql`
     SELECT
-      COALESCE(cc.id::text, legacy_cat.id::text, 'none') AS category_key,
+      COALESCE(oi.catalog_category_id::text, cc.id::text, legacy_cat.id::text, 'none') AS category_key,
       COALESCE(
+        oi.catalog_category_path,
         CASE
           WHEN cc_parent.id IS NOT NULL THEN cc_parent.name || ' / ' || cc.name
           ELSE cc.name

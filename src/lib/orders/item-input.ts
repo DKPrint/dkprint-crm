@@ -13,6 +13,8 @@ export type OrderItemClientInput = {
 export type CatalogProductSnapshot = {
   id: string;
   categoryId: string;
+  catalogCategoryId: string;
+  catalogCategoryPath: string;
   name: string;
   unitPrice: string | number;
 };
@@ -24,6 +26,8 @@ export type ResolvedOrderItemLine = {
   techParams: string | null;
   categoryId: string | null;
   catalogProductId: string | null;
+  catalogCategoryId: string | null;
+  catalogCategoryPath: string | null;
   isManual: boolean;
 };
 
@@ -52,6 +56,8 @@ export function resolveOrderItemLine(
       isManual: true,
       catalogProductId: null,
       categoryId: input.categoryId ?? null,
+      catalogCategoryId: null,
+      catalogCategoryPath: null,
       name: input.name.trim(),
       unitPrice: unit,
       quantity: input.quantity,
@@ -67,6 +73,8 @@ export function resolveOrderItemLine(
     catalogProductId: catalogProduct.id,
     // category_id FK → legacy categories(id); catalog tree lives in catalog_categories
     categoryId: null,
+    catalogCategoryId: catalogProduct.catalogCategoryId,
+    catalogCategoryPath: catalogProduct.catalogCategoryPath,
     name: catalogProduct.name,
     unitPrice: resolveCatalogLineUnitPrice(catalogProduct.unitPrice, input.unitPrice),
     quantity: input.quantity,

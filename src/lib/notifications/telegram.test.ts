@@ -23,12 +23,14 @@ const sampleOrder: OrderTelegramCard = {
       name: 'Визитки',
       quantity: 100,
       techParams: 'матовая 300г',
+      categoryName: null,
     },
     {
       positionNumber: 2,
       name: 'Баннер & A1',
       quantity: 2,
       techParams: null,
+      categoryName: null,
     },
   ],
 };
@@ -51,6 +53,22 @@ describe('buildOrderTelegramCard', () => {
     const text = buildOrderTelegramCard(sampleOrder);
     assert.match(text, /1\. Визитки × 100 — матовая 300г/);
     assert.match(text, /2\. Баннер &amp; A1 × 2 — —/);
+  });
+
+  it('includes category prefix when categoryName is set', () => {
+    const text = buildOrderTelegramCard({
+      ...sampleOrder,
+      items: [
+        {
+          positionNumber: 1,
+          name: 'Визитки',
+          quantity: 100,
+          techParams: '4+4',
+          categoryName: 'Полиграфия / Визитки',
+        },
+      ],
+    });
+    assert.match(text, /1\. Полиграфия \/ Визитки · Визитки × 100 — 4\+4/);
   });
 
   it('shows dash when no comment', () => {

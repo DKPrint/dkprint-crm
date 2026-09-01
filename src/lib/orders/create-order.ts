@@ -58,6 +58,8 @@ async function prepareOrderItems(input: CreateOrderInput) {
       positionNumber: idx + 1,
       categoryId: resolved.categoryId,
       catalogProductId: resolved.catalogProductId,
+      catalogCategoryId: resolved.catalogCategoryId,
+      catalogCategoryPath: resolved.catalogCategoryPath,
       isManual: resolved.isManual,
       name: resolved.name,
       techParams: resolved.techParams,
@@ -114,6 +116,8 @@ export async function createOrder(
   const positions = prepared.map((p) => p.positionNumber);
   const categoryIds = prepared.map((p) => p.categoryId);
   const catalogProductIds = prepared.map((p) => p.catalogProductId);
+  const catalogCategoryIds = prepared.map((p) => p.catalogCategoryId);
+  const catalogCategoryPaths = prepared.map((p) => p.catalogCategoryPath ?? '');
   const isManualFlags = prepared.map((p) => p.isManual);
   const names = prepared.map((p) => p.name);
   const techParams = prepared.map((p) => p.techParams ?? '');
@@ -156,6 +160,7 @@ export async function createOrder(
     items AS (
       INSERT INTO order_items (
         order_id, position_number, category_id, catalog_product_id, is_manual,
+        catalog_category_id, catalog_category_path,
         name, tech_params, quantity, unit_price, line_total
       )
       SELECT
@@ -164,6 +169,8 @@ export async function createOrder(
         t.category_id,
         t.catalog_product_id,
         t.is_manual,
+        t.catalog_category_id,
+        NULLIF(t.catalog_category_path, ''),
         t.name,
         NULLIF(t.tech_params, ''),
         t.quantity,
@@ -175,14 +182,17 @@ export async function createOrder(
         ${categoryIds}::uuid[],
         ${catalogProductIds}::uuid[],
         ${isManualFlags}::boolean[],
+        ${catalogCategoryIds}::uuid[],
+        ${catalogCategoryPaths}::text[],
         ${names}::text[],
         ${techParams}::text[],
         ${quantities}::int[],
         ${unitPrices}::numeric[],
         ${lineTotals}::numeric[]
       ) AS t(
-        position_number, category_id, catalog_product_id, is_manual, name, tech_params,
-        quantity, unit_price, line_total
+        position_number, category_id, catalog_product_id, is_manual,
+        catalog_category_id, catalog_category_path,
+        name, tech_params, quantity, unit_price, line_total
       )
       RETURNING
         id, order_id, position_number, category_id, catalog_product_id, is_manual,

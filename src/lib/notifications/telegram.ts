@@ -27,8 +27,11 @@ export function buildOrderTelegramCard(
   for (const item of order.items) {
     const tech = shortTech(item.techParams);
     const itemName = item.name.trim() ? item.name : '—';
+    const categoryPrefix = item.categoryName?.trim()
+      ? `${escapeHtml(item.categoryName.trim())} · `
+      : '';
     lines.push(
-      `${item.positionNumber}. ${escapeHtml(itemName)} × ${item.quantity} — ${escapeHtml(tech)}`,
+      `${item.positionNumber}. ${categoryPrefix}${escapeHtml(itemName)} × ${item.quantity} — ${escapeHtml(tech)}`,
     );
   }
   lines.push(`Комментарий: ${escapeHtml(comment)}`);
@@ -163,7 +166,12 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
   const lastComment = (commentRows[0] as { body: string } | undefined)?.body ?? null;
 
   const itemRows = (await sql`
-    SELECT position_number, name, quantity, tech_params
+    SELECT
+      position_number,
+      name,
+      quantity,
+      tech_params,
+      catalog_category_path
     FROM order_items
     WHERE order_id = ${orderId}
     ORDER BY position_number ASC
@@ -172,6 +180,7 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
     name: string;
     quantity: number;
     tech_params: string | null;
+    catalog_category_path: string | null;
   }>;
 
   return {
@@ -188,6 +197,7 @@ export async function loadOrderTelegramCard(orderId: string): Promise<OrderTeleg
       name: i.name,
       quantity: Number(i.quantity),
       techParams: i.tech_params,
+      categoryName: i.catalog_category_path,
     })),
     slaStartedAt: row.sla_started_at,
     slaStoppedAt: row.sla_stopped_at,

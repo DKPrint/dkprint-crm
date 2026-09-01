@@ -20,6 +20,7 @@ export type OrderTelegramCard = {
     name: string;
     quantity: number;
     techParams: string | null;
+    categoryName: string | null;
   }>;
 };
 

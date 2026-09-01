@@ -107,15 +107,18 @@ See `.env.example`. **Never** commit real values or put secrets in `NEXT_PUBLIC_
 
 ## Migrations (Neon — apply in order)
 
-| #   | File                                            | Purpose                                                                               |
-| --- | ----------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 1   | `migrations/001_init.sql`                       | Greenfield schema (includes catalog tables from 9b.1)                                 |
-| 2   | `migrations/seed.sql`                           | Legacy categories, SLA default, status transitions                                    |
-| 3   | `migrations/002_orders_telegram_message_id.sql` | TG card pointer                                                                       |
-| 4   | `migrations/003_orders_is_urgent.sql`           | Urgent flag                                                                           |
-| 5   | `migrations/004_order_items_name.sql`           | Item display name                                                                     |
-| 6   | `migrations/005_catalog.sql`                    | `catalog_*` + `order_items.catalog_product_id` / `is_manual` / nullable `category_id` |
-| 7   | —                                               | `npm run seed:admin`                                                                  |
+| #   | File                                              | Purpose                                                                                   |
+| --- | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | `migrations/001_init.sql`                         | Greenfield schema (includes catalog tables from 9b.1)                                     |
+| 2   | `migrations/seed.sql`                             | Legacy categories, SLA default, status transitions                                        |
+| 3   | `migrations/002_orders_telegram_message_id.sql`   | TG card pointer                                                                           |
+| 4   | `migrations/003_orders_is_urgent.sql`             | Urgent flag                                                                               |
+| 5   | `migrations/004_order_items_name.sql`             | Item display name                                                                         |
+| 6   | `migrations/005_catalog.sql`                      | `catalog_*` + `order_items.catalog_product_id` / `is_manual` / nullable `category_id`     |
+| 7   | `migrations/006_clients_soft_delete.sql`          | Client soft-delete columns                                                                |
+| 8   | `migrations/007_permission_denials.sql`           | `permission_overrides.deny_*` flags                                                       |
+| 9   | `migrations/008_order_items_catalog_category.sql` | Catalog category snapshot on order lines (`catalog_category_id`, `catalog_category_path`) |
+| 10  | —                                                 | `npm run seed:admin`                                                                      |
 
 **Existing DBs:** run `002` → `005` if created from older `001`. **Fresh greenfield:** current `001` + `seed` — skip `002`–`005` only if those objects/columns already exist.
 

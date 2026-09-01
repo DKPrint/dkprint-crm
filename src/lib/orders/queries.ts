@@ -50,6 +50,8 @@ type DbItem = {
   position_number: number;
   category_id: string | null;
   catalog_product_id: string | null;
+  catalog_category_id: string | null;
+  catalog_category_path: string | null;
   is_manual: boolean;
   category_name: string | null;
   name: string;
@@ -58,6 +60,16 @@ type DbItem = {
   unit_price: string;
   line_total: string;
 };
+
+/** Effective category label: snapshot path first, then live legacy/catalog joins. */
+export function resolveItemCategoryName(item: {
+  catalog_category_path?: string | null;
+  category_name?: string | null;
+}): string | null {
+  const snapshot = item.catalog_category_path?.trim();
+  if (snapshot) return snapshot;
+  return item.category_name ?? null;
+}
 
 export function serializeOrder(o: DbOrder) {
   return {
@@ -92,8 +104,9 @@ export function serializeItem(i: DbItem) {
     positionNumber: i.position_number,
     categoryId: i.category_id,
     catalogProductId: i.catalog_product_id,
+    catalogCategoryId: i.catalog_category_id,
     isManual: i.is_manual === true,
-    categoryName: i.category_name ?? null,
+    categoryName: resolveItemCategoryName(i),
     name: i.name,
     techParams: i.tech_params,
     quantity: Number(i.quantity),
@@ -129,7 +142,8 @@ export async function getOrderById(
   const items = (await sql`
     SELECT
       oi.id, oi.order_id, oi.position_number, oi.category_id,
-      oi.catalog_product_id, oi.is_manual,
+      oi.catalog_product_id, oi.catalog_category_id, oi.is_manual,
+      oi.catalog_category_path,
       CASE
         WHEN cc.id IS NOT NULL THEN
           CASE

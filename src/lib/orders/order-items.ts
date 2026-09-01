@@ -38,12 +38,16 @@ function itemSnapshot(item: {
   unitPrice?: string;
   lineTotal?: string;
   categoryId?: string | null;
+  catalogCategoryPath?: string | null;
   techParams?: string | null;
 }) {
   return {
     name: item.name,
     quantity: item.quantity,
     ...(item.categoryId !== undefined ? { categoryId: item.categoryId } : {}),
+    ...(item.catalogCategoryPath !== undefined
+      ? { catalogCategoryPath: item.catalogCategoryPath }
+      : {}),
     ...(item.techParams !== undefined ? { techParams: item.techParams } : {}),
     ...(item.unitPrice !== undefined ? { unitPrice: item.unitPrice } : {}),
     ...(item.lineTotal !== undefined ? { lineTotal: item.lineTotal } : {}),
@@ -118,6 +122,7 @@ export async function addOrderItem(
     WITH mutated AS (
       INSERT INTO order_items (
         order_id, position_number, category_id, catalog_product_id, is_manual,
+        catalog_category_id, catalog_category_path,
         name, tech_params, quantity, unit_price, line_total
       )
       VALUES (
@@ -126,6 +131,8 @@ export async function addOrderItem(
         ${resolved.categoryId}::uuid,
         ${resolved.catalogProductId}::uuid,
         ${resolved.isManual},
+        ${resolved.catalogCategoryId}::uuid,
+        ${resolved.catalogCategoryPath},
         ${resolved.name},
         ${resolved.techParams},
         ${resolved.quantity},
@@ -177,6 +184,7 @@ export async function addOrderItem(
           unitPrice: resolved.unitPrice,
           lineTotal: lt,
           categoryId: resolved.categoryId ?? undefined,
+          catalogCategoryPath: resolved.catalogCategoryPath ?? undefined,
           techParams: resolved.techParams,
         }),
       )},
