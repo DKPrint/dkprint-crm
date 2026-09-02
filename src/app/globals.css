@@ -436,6 +436,84 @@ h1 {
   }
 }
 
+.help-doc {
+  max-width: 48rem;
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+.help-doc h1 {
+  font-family: var(--font-head), system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.help-doc h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.help-doc h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.15rem 0 0.4rem;
+}
+
+.help-doc p,
+.help-doc ul,
+.help-doc ol {
+  margin: 0 0 0.75rem;
+}
+
+.help-doc ul,
+.help-doc ol {
+  padding-left: 1.25rem;
+}
+
+.help-doc li {
+  margin-bottom: 0.25rem;
+}
+
+.help-doc hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1.25rem 0;
+}
+
+.help-doc code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--color-bg, #f3f7f9);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.help-doc .table-wrap {
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.help-doc .help-table {
+  width: 100%;
+  min-width: 28rem;
+}
+
+@media (max-width: 768px) {
+  .help-doc {
+    font-size: 14px;
+  }
+
+  .help-doc .help-table th,
+  .help-doc .help-table td {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
 .lede {
   margin-top: 6px;
   font-size: 14px;

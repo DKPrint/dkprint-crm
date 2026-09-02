@@ -34,6 +34,8 @@ export function navItemsFor(role: Role, flags: NavFlags): NavItem[] {
     items.push({ href: '/reports', label: 'Отчёты' });
   }
 
+  items.push({ href: '/help', label: 'Справка' });
+
   if (role === 'admin') {
     items.push({ href: '/admin/catalog', label: 'Каталог' });
     items.push({ href: '/admin/users', label: 'Админка' });
@@ -47,6 +49,10 @@ export function navItemsFor(role: Role, flags: NavFlags): NavItem[] {
  */
 export function canAccessHref(role: Role, flags: NavFlags, href: string): boolean {
   if (href === '/dashboard' || href.startsWith('/dashboard/')) {
+    return true;
+  }
+
+  if (href === '/help' || href.startsWith('/help/')) {
     return true;
   }
 

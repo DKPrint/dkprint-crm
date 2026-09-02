@@ -21,6 +21,7 @@ describe('navItemsFor', () => {
       '/tasks',
       '/clients',
       '/reports',
+      '/help',
       '/admin/catalog',
       '/admin/users',
     ]);
@@ -34,6 +35,7 @@ describe('navItemsFor', () => {
       '/workshop',
       '/tasks',
       '/clients',
+      '/help',
     ]);
   });
 
@@ -46,6 +48,7 @@ describe('navItemsFor', () => {
       '/tasks',
       '/clients',
       '/reports',
+      '/help',
     ]);
   });
 
@@ -56,6 +59,7 @@ describe('navItemsFor', () => {
       '/workshop',
       '/tasks',
       '/clients',
+      '/help',
     ]);
   });
 
@@ -67,6 +71,7 @@ describe('navItemsFor', () => {
       '/tasks',
       '/clients',
       '/reports',
+      '/help',
     ]);
   });
 
@@ -76,11 +81,18 @@ describe('navItemsFor', () => {
       '/orders',
       '/orders/new',
       '/tasks',
+      '/help',
     ]);
   });
 
   it('courier only sees orders', () => {
-    assert.deepEqual(hrefs('courier', withReports), ['/dashboard', '/orders']);
+    assert.deepEqual(hrefs('courier', withReports), ['/dashboard', '/orders', '/help']);
+  });
+
+  it('all five roles have /help', () => {
+    for (const role of ['admin', 'production', 'designer', 'photo_center', 'courier'] as const) {
+      assert.ok(hrefs(role).includes('/help'));
+    }
   });
 });
 
@@ -88,6 +100,12 @@ describe('canAccessHref', () => {
   it('all roles can access /dashboard', () => {
     for (const role of ['admin', 'production', 'designer', 'photo_center', 'courier'] as const) {
       assert.equal(canAccessHref(role, noReports, '/dashboard'), true);
+    }
+  });
+
+  it('all roles can access /help', () => {
+    for (const role of ['admin', 'production', 'designer', 'photo_center', 'courier'] as const) {
+      assert.equal(canAccessHref(role, noReports, '/help'), true);
     }
   });
 

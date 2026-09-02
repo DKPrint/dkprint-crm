@@ -41,6 +41,7 @@ Short status for a new chat / agent. Spec: `@docs/DKPrint-CRM-TZ-v1.md` (**v1.7*
 - Permission **deny_*** flags; catalog category snapshot on order lines (008)
 - Rate limit: login (IP+email) + `POST /api/admin/catalog/import` only
 - **`/dashboard`** home (Boxmart-style): role-scoped summary + month KPI when reports access
+- **`/help`** — role-scoped user guide (`docs/user-guides`; only own role, no `?role=` switch)
 - Cron `/api/cron/sla-overdue`; Vercel Hobby schedule `0 6 * * *` (see OPS)
 - Prod fix: catalog order lines `category_id` NULL; hydration #418; Hobby cron
 
